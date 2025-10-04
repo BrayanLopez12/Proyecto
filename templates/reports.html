@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Reportes{% endblock %}
+
+{% block content %}
+<h2 class="mb-4 fw-bold text-primary"><i class="bi bi-file-earmark-bar-graph"></i> Reportes</h2>
+<hr>
+<div class="row g-3">
+    <!-- Inventario de Combustible -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card border-primary h-100">
+            <div class="card-body">
+                <h5 class="card-title text-primary"><i class="bi bi-fuel-pump"></i> Inventario de Combustible</h5>
+                <p class="card-text">Reporte detallado del inventario de combustible, incluyendo entradas, salidas y saldos.</p>
+                <button class="btn btn-success btn-sm" onclick="openModal('inventario_combustible', 'excel')"><i class="bi bi-file-earmark-excel"></i> Excel</button>
+                <button class="btn btn-danger btn-sm" onclick="openModal('inventario_combustible', 'pdf')"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+            </div>
+        </div>
+    </div>
+    <!-- Ventas de Combustible -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card border-info h-100">
+            <div class="card-body">
+                <h5 class="card-title text-info"><i class="bi bi-droplet-half"></i> Ventas de Combustible</h5>
+                <p class="card-text">Reporte de ventas de combustibles, incluyendo totales y detalles por cliente.</p>
+                <button class="btn btn-success btn-sm" onclick="openModal('ventas_combustible', 'excel')"><i class="bi bi-file-earmark-excel"></i> Excel</button>
+                <button class="btn btn-danger btn-sm" onclick="openModal('ventas_combustible', 'pdf')"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+            </div>
+        </div>
+    </div>
+    <!-- Ventas de Productos -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card border-success h-100">
+            <div class="card-body">
+                <h5 class="card-title text-success"><i class="bi bi-cart-check"></i> Ventas de Productos</h5>
+                <p class="card-text">Reporte de ventas de productos, tendencias y análisis por periodo.</p>
+                <button class="btn btn-success btn-sm" onclick="openModal('ventas_productos', 'excel')"><i class="bi bi-file-earmark-excel"></i> Excel</button>
+                <button class="btn btn-danger btn-sm" onclick="openModal('ventas_productos', 'pdf')"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+            </div>
+        </div>
+    </div>
+    <!-- Inventario de Productos -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card border-warning h-100">
+            <div class="card-body">
+                <h5 class="card-title text-warning"><i class="bi bi-box-seam"></i> Inventario de Productos</h5>
+                <p class="card-text">Reporte de inventario de productos, existencias y movimientos.</p>
+                <button class="btn btn-success btn-sm" onclick="openModal('inventario_productos', 'excel')"><i class="bi bi-file-earmark-excel"></i> Excel</button>
+                <button class="btn btn-danger btn-sm" onclick="openModal('inventario_productos', 'pdf')"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para rango de fechas -->
+<div class="modal fade" id="modalRangoFechas" tabindex="-1" aria-labelledby="modalRangoFechasLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <form id="formDescargaReporte" method="get">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalRangoFechasLabel">Seleccionar rango de fechas</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="fecha_inicio" class="form-label">Fecha inicio</label>
+            <input type="date" class="form-control" id="fecha_inicio" name="fecha_inicio" required>
+          </div>
+          <div class="mb-3">
+            <label for="fecha_fin" class="form-label">Fecha fin</label>
+            <input type="date" class="form-control" id="fecha_fin" name="fecha_fin" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Descargar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+let reporteSeleccionado = '';
+let formatoSeleccionado = '';
+
+function openModal(reporte, formato) {
+    reporteSeleccionado = reporte;
+    formatoSeleccionado = formato;
+    // Limpia fechas
+    document.getElementById('fecha_inicio').value = '';
+    document.getElementById('fecha_fin').value = '';
+    // Muestra el modal
+    var modal = new bootstrap.Modal(document.getElementById('modalRangoFechas'));
+    modal.show();
+}
+
+document.getElementById('formDescargaReporte').onsubmit = function(e) {
+    e.preventDefault();
+    const inicio = document.getElementById('fecha_inicio').value;
+    const fin = document.getElementById('fecha_fin').value;
+    if (!inicio || !fin) return;
+    // Redirige a la ruta de descarga con los parámetros
+    window.location = `/descargar_reporte/${reporteSeleccionado}/${formatoSeleccionado}?fecha_inicio=${inicio}&fecha_fin=${fin}`;
+    // Cierra el modal
+    bootstrap.Modal.getInstance(document.getElementById('modalRangoFechas')).hide();
+};
+</script>
+{% endblock %}

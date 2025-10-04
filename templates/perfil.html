@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Perfil{% endblock %}
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm mt-4">
+                <div class="card-body">
+                    <h3 class="card-title mb-4"><i class="bi bi-person-circle"></i> Perfil de Usuario</h3>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">
+                            <strong>Usuario:</strong> {{ usuario }}
+                        </li>
+                        <!-- Puedes agregar más datos aquí si los tienes -->
+                    </ul>
+                    <a href="{{ url_for('logout') }}" class="btn btn-danger mt-4">Cerrar sesión</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

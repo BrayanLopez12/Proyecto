@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h3>Dashboard</h3>
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm" style="background: #e6f0ff; border-radius: 18px;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-1 text-primary">Ventas Totales Hoy</h6>
+                        <p class="card-text fw-bold fs-3 mb-0 text-primary">Q {{ "{:,.2f}".format(ventas_totales) }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm" style="background: #d6fae6; border-radius: 18px;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-1 text-success">Litros Distribuidos</h6>
+                        <p class="card-text fw-bold fs-3 mb-0 text-success">{{ "{:,.0f}".format(litros_distribuidos) }} L</p>
+                    </div>
+                    <i class="bi bi-fuel-pump fs-1 text-success"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm" style="background: #ede6ff; border-radius: 18px;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-1 text-purple">Productos Vendidos</h6>
+                        <p class="card-text fw-bold fs-3 mb-0 text-purple">{{ "{:,}".format(productos_vendidos) }}</p>
+                    </div>
+                    <i class="bi bi-basket fs-1 text-purple"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card mb-3 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Ventas por Producto (Últimos 7 días)</h5>
+                <canvas id="ventasProductosChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card mb-3 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Inventario Actual</h5>
+                <canvas id="inventarioChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+<style>
+    .text-purple { color: #7c3aed !important; }
+    .card { border-radius: 18px !important; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+ // Gráfica de Ventas por Producto con colores distintos y sin leyenda "Cantidad Vendida"
+  const ventasPorProductoLabels = {{ ventas_por_producto | map(attribute=0) | list | tojson }};
+  const ventasPorProductoData = {{ ventas_por_producto | map(attribute=1) | list | tojson }};
+  // Generar un color diferente para cada barra
+  const backgroundColors = ventasPorProductoLabels.map((_, i) => {
+      const palette = [
+          'rgba(54, 162, 235, 0.7)',
+          'rgba(255, 99, 132, 0.7)',
+          'rgba(255, 206, 86, 0.7)',
+          'rgba(75, 192, 192, 0.7)',
+          'rgba(153, 102, 255, 0.7)',
+          'rgba(255, 159, 64, 0.7)',
+          'rgba(124, 58, 237, 0.7)',
+          'rgba(40, 167, 69, 0.7)',
+          'rgba(220, 53, 69, 0.7)',
+          'rgba(23, 162, 184, 0.7)'
+      ];
+      return palette[i % palette.length];
+  });
+
+  const ctx = document.getElementById('ventasProductosChart').getContext('2d');
+  new Chart(ctx, {
+      type: 'bar',
+      data: {
+          labels: ventasPorProductoLabels,
+          datasets: [{
+              data: ventasPorProductoData,
+              backgroundColor: backgroundColors
+          }]
+      },
+      options: {
+          responsive: true,
+          plugins: {
+              legend: { display: false }
+          },
+          scales: {
+              x: {
+                  ticks: {
+                      callback: function(value, index, ticks) {
+                          // Divide el nombre en líneas de máximo 12 caracteres, pero solo en espacios (palabras completas)
+                          const label = this.getLabelForValue(value);
+                          const palabras = label.split(' ');
+                          const lineas = [];
+                          let lineaActual = '';
+                          palabras.forEach(palabra => {
+                              if ((lineaActual + ' ' + palabra).trim().length > 12) {
+                                  if (lineaActual) lineas.push(lineaActual.trim());
+                                  lineaActual = palabra;
+                              } else {
+                                  lineaActual += ' ' + palabra;
+                              }
+                          });
+                          if (lineaActual) lineas.push(lineaActual.trim());
+                          return lineas;
+                      },
+                      autoSkip: false,
+                      maxRotation: 0,
+                      minRotation: 0
+                  }
+              },
+              y: { beginAtZero: true }
+          }
+      }
+  });
+
+  // Gráfica de Inventario Actual
+  {% if inv_labels and inv_data %}
+  const ctxInv = document.getElementById('inventarioChart').getContext('2d');
+  new Chart(ctxInv, {
+      type: 'doughnut',
+      data: {
+          labels: {{ inv_labels|tojson }},
+          datasets: [{
+              label: 'Inventario (Litros)',
+              data: {{ inv_data|tojson }},
+              backgroundColor: [
+                  'rgba(54, 162, 235, 0.5)',
+                  'rgba(255, 206, 86, 0.5)',
+                  'rgba(124, 58, 237, 0.5)',
+                  'rgba(75, 192, 192, 0.5)',
+                  'rgba(255, 99, 132, 0.5)'
+              ]
+          }]
+      },
+      options: {
+          responsive: true,
+          plugins: {
+              legend: { position: 'bottom' },
+              tooltip: {
+                  callbacks: {
+                      label: function(context) {
+                          const label = context.label || '';
+                          const value = context.raw || 0;
+                          const total = context.dataset.data.reduce((acc, val) => acc + val, 0);
+                          const percentage = ((value / total) * 100).toFixed(2);
+                          return `${label}: ${value} (${percentage}%)`;
+                      }
+                  }
+              }
+          }
+      }
+  });
+  {% endif %}
+</script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% endblock %}

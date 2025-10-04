@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}PetrolPetapa{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #1e40af;
+            --secondary-color: #2563eb;
+            --accent-color: #3b82f6;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --light-gray: #f8f9fa;
+            --dark-blue: #1e3a8a;
+        }
+        
+        body { 
+            background: var(--light-gray);
+            color: #333;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Login Page Styles */
+        .login-page {
+            background: linear-gradient(135deg, var(--dark-blue) 0%, var(--primary-color) 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        
+        .login-card {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 420px;
+            overflow: hidden;
+        }
+        
+        .login-header {
+            background: var(--primary-color);
+            color: white;
+            padding: 2rem 2rem 1.5rem;
+            text-align: center;
+        }
+        
+        .login-header h3 {
+            margin: 0;
+            font-weight: 600;
+        }
+        
+        .login-body {
+            padding: 2rem;
+        }
+        
+        .form-control:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 0.25rem rgba(37, 99, 235, 0.25);
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+            transform: translateY(-1px);
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 1.5rem;
+            border-top: 1px solid #eee;
+            background: #f9f9f9;
+        }
+        
+        /* Main Application Layout */
+        .container-fluid {
+            padding: 0;
+            margin: 0;
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: 60px; /* Altura del header */
+            left: 0;
+            bottom: 0;
+            width: 250px;
+            background: white;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        
+        main {
+            margin-left: 250px; /* Igual que el ancho del sidebar */
+            padding: 1.5rem;
+            width: calc(100% - 250px);
+            min-height: calc(100vh - 60px); /* Altura total menos el header */
+            margin-top: 60px; /* Altura del header */
+            background-color: #f8f9fa;
+        }
+        
+        @media (max-width: 992px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease-in-out;
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            main {
+                margin-left: 0;
+                width: 100%;
+            }
+        }
+        
+        @media (max-width: 992px) {
+            .main-content {
+                margin-left: 0;
+            }
+        }
+        
+        .sidebar { 
+            min-height: 100vh; 
+            background: #fff; 
+            border-right: 1px solid #e5e5e5;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            position: fixed;
+            width: 250px;
+            z-index: 1000;
+        }
+        
+        .sidebar .nav-link {
+            color: #4a5568;
+            padding: 0.75rem 1.5rem;
+            margin: 0.25rem 0;
+            border-radius: 0.375rem;
+            transition: all 0.2s;
+        }
+        
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            background-color: #f0f7ff;
+            color: var(--primary-color);
+        }
+        
+        .sidebar .nav-link i {
+            margin-right: 0.75rem;
+            width: 20px;
+            text-align: center;
+        }
+        .sidebar .nav-link { 
+            color: #4b5563;
+            border-radius: 0.375rem;
+            margin: 0.25rem 0.5rem;
+            padding: 0.5rem 1rem;
+        }
+        .sidebar .nav-link:hover { 
+            background: #f3f4f6;
+            color: var(--primary-color);
+        }
+        .sidebar .nav-link.active { 
+            background: #eff6ff;
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+        .sidebar .nav-link i { 
+            margin-right: 0.5rem;
+            width: 1.25rem;
+            text-align: center;
+        }
+        
+        .header-bar { 
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            z-index: 1030;
+            padding: 0 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        /* Estilos para el menú desplegable */
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .dropdown-menu {
+            position: absolute;
+            right: 0;
+            left: auto;
+            z-index: 1100;
+            display: none;
+            min-width: 10rem;
+            padding: 0.5rem 0;
+            margin: 0.125rem 0 0;
+            font-size: 0.875rem;
+            color: #212529;
+            text-align: left;
+            list-style: none;
+            background-color: #fff;
+            background-clip: padding-box;
+            border: 1px solid rgba(0, 0, 0, 0.15);
+            border-radius: 0.25rem;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.175);
+        }
+        
+        .dropdown-menu.show {
+            display: block;
+        }
+        
+        .dropdown-item {
+            display: block;
+            width: 100%;
+            padding: 0.25rem 1.5rem;
+            clear: both;
+            font-weight: 400;
+            color: #212529;
+            text-align: inherit;
+            white-space: nowrap;
+            background-color: transparent;
+            border: 0;
+            text-decoration: none;
+        }
+        
+        .dropdown-item:hover, .dropdown-item:focus {
+            color: #16181b;
+            background-color: #f8f9fa;
+        }
+        
+        .dropdown-divider {
+            height: 0;
+            margin: 0.5rem 0;
+            overflow: hidden;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        /* Estilo para el botón del menú de usuario */
+        .header-bar .dropdown-toggle {
+            color: white !important;
+            text-decoration: none;
+            padding: 0.375rem 0.75rem;
+            border-radius: 0.25rem;
+            transition: all 0.2s;
+            background: transparent;
+            border: 1px solid transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            white-space: nowrap;
+        }
+        
+        .header-bar .dropdown-toggle:focus {
+            outline: 0;
+            box-shadow: 0 0 0 0.2rem rgba(30, 64, 175, 0.5);
+        }
+        
+        .header-bar .dropdown-toggle:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            letter-spacing: -0.5px;
+            white-space: nowrap;
+        }
+        
+        .brand-highlight {
+            color: white;
+            font-weight: 700;
+            opacity: 0.9;
+        }
+        
+        .subtitle {
+            font-size: 0.95rem;
+            opacity: 0.9;
+        }
+        main {
+            margin-left: 250px; /* Ancho del sidebar */
+            padding: 1.5rem;
+            margin-top: 60px; /* Altura del header */
+            min-height: calc(100vh - 60px);
+            background-color: #f8f9fa;
+            transition: margin 0.3s ease;
+        }
+        
+        @media (max-width: 992px) {
+            main {
+                margin-left: 0;
+                width: 100%;
+            }
+        }
+        .login-card {
+            background: rgba(255, 255, 255, 0.95);
+            border: none;
+            border-radius: 1rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            max-width: 420px;
+            width: 100%;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .login-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+        }
+        .login-header {
+            background: linear-gradient(90deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 2rem 1.5rem;
+            text-align: center;
+        }
+        .login-body {
+            padding: 2rem;
+        }
+        .form-control:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 0.25rem rgba(37, 99, 235, 0.15);
+        }
+        .btn-primary {
+            background: var(--primary-color);
+            border: none;
+            padding: 0.6rem 1.5rem;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            background: #1e3a8a;
+            transform: translateY(-1px);
+        }
+        .footer {
+            text-align: center;
+            padding: 1.5rem;
+            color: #6b7280;
+            font-size: 0.85rem;
+            border-top: 1px solid #e5e7eb;
+        }
+        .brand-highlight {
+            color: var(--primary-color);
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+    {% if session.get('usuario') %}
+    <!-- Barra superior -->
+    <div class="header-bar py-3 px-4 d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <span class="logo">Petrol<span class="brand-highlight">Petapa</span></span>
+            <span class="subtitle ms-3 d-none d-md-inline">Sistema de Gestión de Combustible</span>
+        </div>
+        <div class="dropdown">
+            <button class="btn btn-link text-white text-decoration-none dropdown-toggle d-flex align-items-center" 
+                    type="button" 
+                    id="perfilDropdown" 
+                    data-bs-toggle="dropdown" 
+                    aria-expanded="false"
+                    style="padding: 0.25rem 0.5rem;">
+                <i class="bi bi-person-circle me-2"></i> 
+                <span class="d-none d-sm-inline">{{ session['usuario'] }}</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="perfilDropdown">
+                <li><a class="dropdown-item" href="{{ url_for('perfil') }}"><i class="bi bi-person me-2"></i>Ver perfil</a></li>
+                <li><hr class="dropdown-divider my-1"></li>
+                <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}" onclick="return confirm('¿Estás seguro de que deseas cerrar sesión?')">
+                    <i class="bi bi-box-arrow-right me-2"></i>Cerrar sesión
+                </a></li>
+            </ul>
+        </div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <ul class="nav flex-column pt-3">
+            <li class="nav-item mb-2 px-3">
+                <a class="nav-link {% if request.path == '/dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                    <i class="bi bi-speedometer2 me-2"></i> Dashboard
+                </a>
+            </li>
+                <li class="nav-item mb-2 px-3">
+                    <a class="nav-link {% if request.path == '/fuel-inventory' %}active{% endif %}" href="{{ url_for('inventory_and_trucks') }}">
+                        <i class="bi bi-fuel-pump me-2"></i> Inventario de Combustible
+                    </a>
+                </li>
+                <li class="nav-item mb-2 px-3">
+                    <a class="nav-link {% if request.path == '/ventas-combustible' %}active{% endif %}" href="{{ url_for('ventas_combustible') }}">
+                        <i class="bi bi-droplet-half me-2"></i> Ventas de Combustible
+                    </a>
+                </li>
+                <li class="nav-item mb-2 px-3">
+                    <a class="nav-link {% if request.path == '/sales' %}active{% endif %}" href="{{ url_for('ventas') }}">
+                        <i class="bi bi-cart me-2"></i> Ventas de Productos
+                    </a>
+                </li>
+                <li class="nav-item mb-2 px-3">
+                    <a class="nav-link {% if request.path == '/product-inventory' %}active{% endif %}" href="{{ url_for('product_inventory') }}">
+                        <i class="bi bi-box-seam me-2"></i> Inventario Productos
+                    </a>
+                </li>
+                <li class="nav-item mb-2 px-3">
+                    <a class="nav-link {% if request.path == '/statistics' %}active{% endif %}" href="{{ url_for('estadisticas_combustible') }}">
+                        <i class="bi bi-bar-chart me-2"></i> Gráficas y Estadísticas
+                    </a>
+                </li>
+                <li class="nav-item mb-2 px-3">
+                    <a class="nav-link {% if request.path == '/reports' %}active{% endif %}" href="{{ url_for('reports') }}">
+                        <i class="bi bi-file-earmark-text me-2"></i> Reportes
+                    </a>
+                </li>
+                <i class="bi bi-person-circle me-2"></i> 
+                <span class="d-none d-sm-inline">{{ session['usuario'] }}</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="perfilDropdown">
+                <li><a class="dropdown-item" href="{{ url_for('perfil') }}"><i class="bi bi-person me-2"></i>Ver perfil</a></li>
+                <li><hr class="dropdown-divider my-1"></li>
+                <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}" onclick="return confirm('¿Estás seguro de que deseas cerrar sesión?')">
+    <i class="bi bi-box-arrow-right me-2"></i>Cerrar sesión
+</a></li>
+            </ul>
+        </div>
+    </div>
+    
+    <!-- Sidebar - Solo visible cuando hay sesión activa -->
+    <nav class="sidebar">
+        <ul class="nav flex-column pt-3">
+            <li class="nav-item mb-2 px-3">
+                <a class="nav-link {% if request.path == '/dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                    <i class="bi bi-speedometer2 me-2"></i> Dashboard
+                </a>
+            </li>
+            <li class="nav-item mb-2 px-3">
+                <a class="nav-link {% if request.path == '/fuel-inventory' %}active{% endif %}" href="{{ url_for('inventory_and_trucks') }}">
+                    <i class="bi bi-fuel-pump me-2"></i> Inventario de Combustible
+                </a>
+            </li>
+            <li class="nav-item mb-2 px-3">
+                <a class="nav-link {% if request.path == '/ventas-combustible' %}active{% endif %}" href="{{ url_for('ventas_combustible') }}">
+                    <i class="bi bi-droplet-half me-2"></i> Ventas de Combustible
+                </a>
+            </li>
+            <li class="nav-item mb-2 px-3">
+                <a class="nav-link {% if request.path == '/sales' %}active{% endif %}" href="{{ url_for('ventas') }}">
+                    <i class="bi bi-cart me-2"></i> Ventas de Productos
+                </a>
+            </li>
+            <li class="nav-item mb-2 px-3">
+                <a class="nav-link {% if request.path == '/product-inventory' %}active{% endif %}" href="{{ url_for('product_inventory') }}">
+                    <i class="bi bi-box-seam me-2"></i> Inventario Productos
+                </a>
+            </li>
+            <li class="nav-item mb-2 px-3">
+                <a class="nav-link {% if request.path == '/statistics' %}active{% endif %}" href="{{ url_for('estadisticas_combustible') }}">
+                    <i class="bi bi-bar-chart me-2"></i> Gráficas y Estadísticas
+                </a>
+            </li>
+            <li class="nav-item mb-2 px-3">
+                <a class="nav-link {% if request.path == '/reports' %}active{% endif %}" href="{{ url_for('reports') }}">
+                    <i class="bi bi-file-earmark-text me-2"></i> Reportes
+                </a>
+            </li>
+        </ul>
+        <div class="alert alert-warning mt-4 mx-3" role="alert">
+            <small><i class="bi bi-lightbulb me-1"></i> <strong>Consejo:</strong> Actualiza el inventario diariamente para mantener datos precisos.</small>
+        </div>
+    </nav>
+    
+    <!-- Main content -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    {% else %}
+    <!-- Página de Login -->
+    <div class="login-bg">
+        {% block login_content %}
+        {% endblock %}
+    </div>
+    {% endif %}
+    
+    <!-- Scripts de Bootstrap y personalizados -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Inicialización mejorada de componentes de Bootstrap
+        document.addEventListener('DOMContentLoaded', function() {
+            // Inicializar tooltips
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+                new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+            
+            // Inicializar popovers
+            var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+            popoverTriggerList.forEach(function (popoverTriggerEl) {
+                new bootstrap.Popover(popoverTriggerEl);
+            });
+            
+            // Inicializar menús desplegables
+            var dropdownElementList = [].slice.call(document.querySelectorAll('.dropdown-toggle'));
+            dropdownElementList.forEach(function (dropdownToggleEl) {
+                // Crear instancia de Dropdown
+                var dropdown = new bootstrap.Dropdown(dropdownToggleEl);
+                
+                // Manejar clic en el botón del menú
+                dropdownToggleEl.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Cerrar otros menús abiertos
+                    var openMenus = document.querySelectorAll('.dropdown-menu.show');
+                    openMenus.forEach(function(menu) {
+                        if (menu !== dropdownToggleEl.nextElementSibling) {
+                            var parent = menu.closest('.dropdown');
+                            if (parent) {
+                                var btn = parent.querySelector('.dropdown-toggle');
+                                if (btn) {
+                                    var btnInstance = bootstrap.Dropdown.getInstance(btn);
+                                    if (btnInstance) {
+                                        btnInstance.hide();
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Alternar el menú actual
+                    dropdown.toggle();
+                });
+                
+                // Cerrar menú al hacer clic fuera
+                document.addEventListener('click', function(e) {
+                    if (!dropdownToggleEl.contains(e.target) && 
+                        !dropdownToggleEl.nextElementSibling.contains(e.target)) {
+                        dropdown.hide();
+                    }
+                });
+            });
+            
+            // Manejar tecla Escape para cerrar menús
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    var openMenus = document.querySelectorAll('.dropdown-menu.show');
+                    openMenus.forEach(function(menu) {
+                        var parent = menu.closest('.dropdown');
+                        if (parent) {
+                            var btn = parent.querySelector('.dropdown-toggle');
+                            if (btn) {
+                                var btnInstance = bootstrap.Dropdown.getInstance(btn);
+                                if (btnInstance) {
+                                    btnInstance.hide();
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

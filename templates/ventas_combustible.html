@@ -1,0 +1,318 @@
+{% extends 'base.html' %}
+{% block title %}Ventas de Combustible{% endblock %}
+{% block content %}
+<div class="container-fluid">
+
+    <!-- BLOQUE PARA MENSAJES FLASH -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    <!-- FIN BLOQUE MENSAJES FLASH -->
+
+    <h3 class="mb-4">Ventas de Combustible</h3>
+    <!-- Navegación de pestañas -->
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <a class="nav-link {% if not tab or tab == 'nueva' %}active{% endif %}" href="{{ url_for('ventas_combustible', tab='nueva') }}">Nueva Venta</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if tab == 'historial' %}active{% endif %}" href="{{ url_for('ventas_combustible', tab='historial') }}">Historial de Ventas</a>
+        </li>
+    </ul>
+
+    {% if not tab or tab == 'nueva' %}
+    <!-- Formulario principal -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form id="form-venta-combustible" method="POST" action="{{ url_for('registrar_venta_combustible') }}">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label>Cliente</label>
+                                <select name="cliente_id" class="form-control" required>
+                                    <option value="">Seleccionar cliente...</option>
+                                    {% for cliente in clientes %}
+                                        <option value="{{ cliente.id }}">{{ cliente.nombre }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label>Fecha</label>
+                                <input type="date" name="fecha" id="fecha-venta" class="form-control" readonly>
+                            </div>
+                        </div>
+                        <div class="row align-items-end mb-3">
+                            <div class="col-md-3">
+                                <label>Monto en Quetzales</label>
+                                <input type="number" step="0.01" id="monto_quetzales" class="form-control" min="0">
+                            </div>
+                            <div class="col-md-3">
+                                <label>Tipo de Combustible</label>
+                                <select id="tipo_combustible" name="tipo_combustible_id" class="form-control" required>
+                                    <option value="">Seleccionar tipo...</option>
+                                    {% for tipo in tipos_combustible %}
+                                        <option value="{{ tipo.id }}" data-precio="{{ tipo.precio }}">{{ tipo.nombre }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label>Precio por Litro</label>
+                                <input type="number" step="0.01" id="precio_unitario" name="precio_unitario" class="form-control" readonly>
+                            </div>
+                            <div class="col-md-2">
+                                <label>Cantidad de Litros</label>
+                                <input type="number" step="0.01" id="cantidad_litros" name="cantidad_litros" class="form-control" readonly>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-primary w-100" onclick="agregarDetalle()">Agregar</button>
+                            </div>
+                        </div>
+                        <div class="table-responsive mb-3">
+                            <table class="table table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Tipo</th>
+                                        <th>Precio</th>
+                                        <th>Cantidad</th>
+                                        <th>Subtotal</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="detalleTabla"></tbody>
+                            </table>
+                        </div>
+                        <input type="hidden" name="detalles" id="detallesInput">
+                        <input type="hidden" name="observaciones" id="hiddenObservaciones">
+                        <input type="hidden" name="metodo_pago" value="Efectivo">
+                        <button type="submit" class="btn btn-success">Finalizar Venta</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <!-- Resumen de venta -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5>Resumen de Venta</h5>
+                    <div class="mb-2">Subtotal: Q<span id="resumenSubtotal">0.00</span></div>
+                    <div class="mb-2">Total: <strong>Q<span id="resumenTotal">0.00</span></strong></div>
+                    <div class="mb-2">
+                        <label>Método de Pago</label>
+                        <input type="text" class="form-control" id="resumenMetodoPago" value="Efectivo" readonly>
+                    </div>
+                    <div class="mb-2">
+                        <label>Observaciones</label>
+                        <textarea class="form-control" id="resumenObservaciones"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% elif tab == 'historial' %}
+    <!-- Historial de ventas -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <form method="get" class="mb-3">
+                <input type="hidden" name="tab" value="historial">
+                <div class="row">
+                    <div class="col-md-4">
+                        <select name="filtro_cliente" class="form-control">
+                            <option value="">Todos los clientes</option>
+                            {% for cliente in clientes %}
+                                <option value="{{ cliente.id }}" {% if filtro_cliente == cliente.id|string %}selected{% endif %}>{{ cliente.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <input type="date" name="filtro_fecha" class="form-control" value="{{ filtro_fecha or '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-secondary">Filtrar</button>
+                    </div>
+                </div>
+            </form>
+            <div class="card">
+                <div class="card-header">
+                    <h5>Historial de Ventas de Combustible</h5>
+                </div>
+                <div class="card-body table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Cliente</th>
+                                <th>Tipo de Combustible</th>
+                                <th>Litros</th>
+                                <th>Precio Unitario</th>
+                                <th>Subtotal</th>
+                                <th>Total Venta</th>
+                                <th>Método de Pago</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for venta in historial %}
+                            <tr>
+                                <td>{{ venta.fecha }}</td>
+                                <td>{{ venta.cliente }}</td>
+                                <td>{{ venta.tipo_combustible }}</td>
+                                <td>{{ venta.litros|round(2) }}</td>
+                                <td>Q{{ venta.precio|round(2) }}</td>
+                                <td>Q{{ venta.subtotal|round(2) }}</td>
+                                <td>Q{{ venta.total|round(2) }}</td>
+                                <td>{{ venta.metodo_pago }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center">No hay ventas registradas.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% if total_paginas > 1 %}
+                    <nav>
+                        <ul class="pagination justify-content-center">
+                            {% for p in range(1, total_paginas+1) %}
+                                <li class="page-item {% if p == pagina %}active{% endif %}">
+                                    <a class="page-link" href="?tab=historial&pagina={{ p }}{% if filtro_cliente %}&filtro_cliente={{ filtro_cliente }}{% endif %}{% if filtro_fecha %}&filtro_fecha={{ filtro_fecha }}{% endif %}">{{ p }}</a>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fechaInput = document.getElementById('fecha-venta');
+    if (fechaInput) {
+        const hoy = new Date();
+        const yyyy = hoy.getFullYear();
+        const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+        const dd = String(hoy.getDate()).padStart(2, '0');
+        fechaInput.value = `${yyyy}-${mm}-${dd}`;
+        fechaInput.readOnly = true;
+    }
+
+    const tipoSelect = document.getElementById('tipo_combustible');
+    const precioInput = document.getElementById('precio_unitario');
+    if (tipoSelect && precioInput) {
+        tipoSelect.addEventListener('change', function() {
+            const selected = tipoSelect.options[tipoSelect.selectedIndex];
+            precioInput.value = selected.getAttribute('data-precio') || '';
+            calcularLitros();
+        });
+    }
+
+    const montoInput = document.getElementById('monto_quetzales');
+    const litrosInput = document.getElementById('cantidad_litros');
+    if (montoInput && precioInput && litrosInput) {
+        montoInput.addEventListener('input', calcularLitros);
+        precioInput.addEventListener('input', calcularLitros);
+    }
+
+    function calcularLitros() {
+        const monto = parseFloat(montoInput.value) || 0;
+        const precio = parseFloat(precioInput.value) || 0;
+        litrosInput.value = (precio > 0 ? (monto / precio).toFixed(2) : '');
+    }
+});
+
+let detalles = [];
+function agregarDetalle() {
+    const tipoSelect = document.getElementById('tipo_combustible');
+    const tipoId = tipoSelect.value;
+    const tipoNombre = tipoSelect.options[tipoSelect.selectedIndex].text;
+    const precio = parseFloat(document.getElementById('precio_unitario').value) || 0;
+    const cantidad = parseFloat(document.getElementById('cantidad_litros').value) || 0;
+    const monto = parseFloat(document.getElementById('monto_quetzales').value) || 0;
+    if (!tipoId || precio <= 0 || cantidad <= 0 || monto <= 0) return;
+
+    const subtotal = monto;
+    detalles.push({
+        tipo_combustible_id: tipoId,
+        tipo_nombre: tipoNombre,
+        precio_unitario: precio,
+        cantidad_litros: cantidad,
+        subtotal: subtotal,
+        monto_quetzales: monto
+    });
+    actualizarTabla();
+    document.getElementById('cantidad_litros').value = '';
+    document.getElementById('monto_quetzales').value = '';
+}
+
+function formatNumber(num) {
+    return num.toLocaleString('es-GT', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function actualizarTabla() {
+    const tbody = document.getElementById('detalleTabla');
+    tbody.innerHTML = '';
+    let total = 0;
+    detalles.forEach((item, idx) => {
+        total += item.subtotal;
+        tbody.innerHTML += `
+            <tr>
+                <td>${item.tipo_nombre}</td>
+                <td>Q${formatNumber(item.precio_unitario)}</td>
+                <td>${formatNumber(item.cantidad_litros)}</td>
+                <td>Q${formatNumber(item.subtotal)}</td>
+                <td>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="eliminarDetalle(${idx})">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5.5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6zm3 .5a.5.5 0 0 1 .5-.5.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6z"/>
+                            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1H14a1 1 0 0 1 1 1v1zm-1-1V2H2v1h12z"/>
+                        </svg>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    document.getElementById('detallesInput').value = JSON.stringify(detalles);
+    document.getElementById('resumenSubtotal').innerText = formatNumber(total);
+    document.getElementById('resumenTotal').innerText = formatNumber(total);
+}
+
+function eliminarDetalle(idx) {
+    detalles.splice(idx, 1);
+    actualizarTabla();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const obsResumen = document.getElementById('resumenObservaciones');
+    const hiddenObs = document.getElementById('hiddenObservaciones');
+    if (obsResumen && hiddenObs) {
+        obsResumen.addEventListener('input', function() {
+            hiddenObs.value = obsResumen.value;
+        });
+    }
+
+    // Validación antes de enviar el formulario
+    const formVenta = document.getElementById('form-venta-combustible');
+    if (formVenta) {
+        formVenta.addEventListener('submit', function(e) {
+            if (detalles.length === 0) {
+                alert('Debe agregar al menos un detalle de venta.');
+                e.preventDefault();
+                return false;
+            }
+            document.getElementById('detallesInput').value = JSON.stringify(detalles);
+            hiddenObs.value = obsResumen.value;
+        });
+    }
+});
+</script>
+{% endblock %}

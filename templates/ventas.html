@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Ventas de Productos</h2>
+    <!-- Pestañas de navegación -->
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'nueva' or not active_tab %}active{% endif %}" href="{{ url_for('ventas') }}">Nueva Venta</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'historial' %}active{% endif %}" href="{{ url_for('historial_ventas') }}">Historial de Ventas</a>
+        </li>
+    </ul>
+
+    {% if active_tab == 'nueva' or not active_tab %}
+    <form method="post">
+        <div class="row">
+            <!-- Sección izquierda: Datos, productos y carrito -->
+            <div class="col-md-8">
+                <!-- Cliente y Fecha -->
+                <div class="row mb-3">
+                    <div class="col">
+                        <label>Cliente</label>
+                        <select name="cliente" class="form-control" required>
+                            <option value="">Seleccionar cliente...</option>
+                            {% for cliente in clientes %}
+                                <option value="{{ cliente.ClienteID }}" {% if cliente.ClienteID|string == cliente_seleccionado %}selected{% endif %}>{{ cliente.Nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col">
+                        <label>Fecha</label>
+                        <input type="date" name="fecha" class="form-control" value="{{ fecha_actual }}" readonly>
+                    </div>
+                </div>
+                <!-- Agregar producto al carrito -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col">
+                                <label>Producto</label>
+                                <select name="producto_id" class="form-control" required>
+                                    <option value="">Seleccionar producto...</option>
+                                    {% for producto in productos %}
+                                        <option value="{{ producto.ProductoID }}">{{ producto.Codigo }} - {{ producto.Nombre }} (Q{{ "%.2f"|format(producto.Precio) }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col">
+                                <label>Cantidad</label>
+                                <input type="number" name="cantidad" class="form-control" min="1" value="1" required>
+                            </div>
+                            <div class="col d-flex align-items-end">
+                                <button type="submit" name="agregar_producto" class="btn btn-primary w-100">Agregar Producto</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Tabla de productos en el carrito -->
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>CÓDIGO</th>
+                                <th>PRODUCTO</th>
+                                <th>PRECIO</th>
+                                <th>CANTIDAD</th>
+                                <th>SUBTOTAL</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in carrito %}
+                            <tr>
+                                <td>{{ item.codigo }}</td>
+                                <td>{{ item.nombre }}</td>
+                                <td>Q{{ "%.2f"|format(item.precio) }}</td>
+                                <td>{{ item.cantidad }}</td>
+                                <td>Q{{ "%.2f"|format(item.precio * item.cantidad) }}</td>
+                                <td>
+                                    <form method="post" style="display:inline;">
+                                        <button type="submit" name="eliminar_producto" value="{{ item.producto_id }}" class="btn btn-danger btn-sm" title="Eliminar">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Sección derecha: Resumen de venta -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5>Resumen de Venta</h5>
+                        <div class="mb-2 d-flex justify-content-between">
+                            <span>Subtotal:</span>
+                            <span>Q{{ "%.2f"|format(subtotal) }}</span>
+                        </div>
+                        <div class="mb-2 d-flex justify-content-between">
+                            <span>IVA:</span>
+                            <span>Q{{ "%.2f"|format(iva) }}</span>
+                        </div>
+                        <div class="mb-2 d-flex justify-content-between">
+                            <span>Descuento:</span>
+                            <span>Q{{ "%.2f"|format(descuento) }}</span>
+                        </div>
+                        <hr>
+                        <div class="mb-2 d-flex justify-content-between">
+                            <strong>Total:</strong>
+                            <strong>Q{{ "%.2f"|format(total) }}</strong>
+                        </div>
+                        <div class="mb-2">
+                            <label>Método de Pago</label>
+                            <select name="metodo_pago" class="form-control" required>
+                                <option value="Efectivo" {% if metodo_pago == 'Efectivo' %}selected{% endif %}>Efectivo</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label>Observaciones</label>
+                            <textarea name="observaciones" class="form-control" placeholder="Ingrese observaciones">{{ observaciones }}</textarea>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <button type="submit" name="cancelar_venta" class="btn btn-secondary" formnovalidate>Cancelar</button>
+                            <button type="submit" name="finalizar_venta" class="btn btn-success" formnovalidate>Finalizar Venta</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+    {% endif %}
+
+    {% if active_tab == 'historial' %}
+    <div class="card mt-4">
+        <div class="card-body">
+            <!-- <h4 class="mb-3 text-primary fw-bold">Historial de Ventas</h4> -->
+            <form method="get" class="row g-2 mb-3">
+                <div class="col-auto">
+                    <label for="mes" class="form-label">Mes:</label>
+                    <select name="mes" id="mes" class="form-select">
+                        {% for m in range(1, 13) %}
+                            <option value="{{ m }}" {% if m == mes %}selected{% endif %}>{{ m }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label for="anio" class="form-label">Año:</label>
+                    <input type="number" name="anio" id="anio" class="form-control" value="{{ anio }}">
+                </div>
+                <div class="col-auto align-self-end">
+                    <button type="submit" class="btn btn-primary">Filtrar</button>
+                </div>
+            </form>
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <!-- <th>ID Venta</th> -->
+                            <th>Cliente</th>
+                            <th>Fecha</th>
+                            <th>Total</th>
+                            <th>Método de Pago</th>
+                            <th>Observaciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for venta in ventas %}
+                        <tr>
+                            <!-- <td>{{ venta.id }}</td> -->
+                            <td>{{ venta.cliente }}</td>
+                            <td>{{ venta.fecha.strftime('%d-%m-%Y') }}</td>
+                            <td>Q{{ "%.2f"|format(venta.total) }}</td>
+                            <td>{{ venta.metodo_pago }}</td>
+                            <td>{{ venta.observaciones }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">No hay ventas registradas.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <nav class="mt-3">
+                <ul class="pagination justify-content-center">
+                    {% for p in range(1, total_pages + 1) %}
+                        <li class="page-item {% if p == page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('historial_ventas', mes=mes, anio=anio, page=p) }}">{{ p }}</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </nav>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

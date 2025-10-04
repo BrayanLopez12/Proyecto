@@ -1,0 +1,458 @@
+{% extends "base.html" %}
+
+{% block title %}Gráficas y Estadísticas{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Gráficas y Estadísticas</h1>
+    </div>
+
+    <div class="row">
+        <!-- Filtros para Ventas de Combustible -->
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Filtros de Ventas por Combustible</h6>
+                </div>
+                <div class="card-body">
+                    <form method="GET" action="{{ url_for('estadisticas_combustible') }}">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="cliente_combustible" class="form-label">Cliente</label>
+                                <select name="cliente_combustible" id="cliente_combustible" class="form-select">
+                                    <option value="">Todos los clientes</option>
+                                    {% for cliente in clientes %}
+                                        <option value="{{ cliente.ClienteID }}" {% if cliente.ClienteID|string == request.args.get('cliente_combustible') %}selected{% endif %}>{{ cliente.Nombre }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="mes_combustible" class="form-label">Mes</label>
+                                <select name="mes_combustible" id="mes_combustible" class="form-select">
+                                    <option value="">Todos</option>
+                                    {% for i in range(1, 13) %}
+                                        <option value="{{ i }}" {% if i|string == request.args.get('mes_combustible') %}selected{% endif %}>{{ i }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="anio_combustible" class="form-label">Año</label>
+                                <select name="anio_combustible" id="anio_combustible" class="form-select">
+                                    <option value="">Todos</option>
+                                    {% for anio in range(2023, 2031) %}
+                                        <option value="{{ anio }}" {% if anio|string == request.args.get('anio_combustible') %}selected{% endif %}>{{ anio }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-primary"><i class="bi bi-funnel-fill me-2"></i>Filtrar</button>
+                            <a href="{{ url_for('estadisticas_combustible') }}" class="btn btn-outline-secondary"><i class="bi bi-x-circle me-2"></i>Quitar Filtros</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtros para Productos más Vendidos -->
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-success">Filtros de Productos Más Vendidos</h6>
+                </div>
+                <div class="card-body">
+                    <form method="GET" action="{{ url_for('estadisticas_combustible') }}">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="cliente_producto" class="form-label">Cliente</label>
+                                <select name="cliente_producto" id="cliente_producto" class="form-select">
+                                    <option value="">Todos los clientes</option>
+                                    {% for cliente in clientes %}
+                                        <option value="{{ cliente.ClienteID }}" {% if cliente.ClienteID|string == request.args.get('cliente_producto') %}selected{% endif %}>{{ cliente.Nombre }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="mes_producto" class="form-label">Mes</label>
+                                <select name="mes_producto" id="mes_producto" class="form-select">
+                                    <option value="">Todos</option>
+                                    {% for i in range(1, 13) %}
+                                        <option value="{{ i }}" {% if i|string == request.args.get('mes_producto') %}selected{% endif %}>{{ i }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="anio_producto" class="form-label">Año</label>
+                                <select name="anio_producto" id="anio_producto" class="form-select">
+                                    <option value="">Todos</option>
+                                    {% for anio in range(2023, 2031) %}
+                                        <option value="{{ anio }}" {% if anio|string == request.args.get('anio_producto') %}selected{% endif %}>{{ anio }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-success"><i class="bi bi-funnel-fill me-2"></i>Filtrar</button>
+                            <a href="{{ url_for('estadisticas_combustible') }}" class="btn btn-outline-secondary"><i class="bi bi-x-circle me-2"></i>Quitar Filtros</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Gráfica de Ventas Mensuales -->
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between" style="background-color: #1e40af; color: white;">
+                    <h6 class="m-0 font-weight-bold">Ventas Mensuales por Combustible</h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-area" style="height: 320px;">
+                        <canvas id="ventasMensualesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfica de Productos más Vendidos -->
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between" style="background-color: #16a34a; color: white;">
+                    <h6 class="m-0 font-weight-bold">Productos Más Vendidos</h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-pie pt-4" style="height: 320px;">
+                        <canvas id="productosMasVendidosChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Función para mostrar mensajes de error en los canvas
+function mostrarMensajeError(canvas, mensaje) {
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Limpiar el canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Configurar el estilo del texto
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '16px "Nunito", sans-serif';
+    ctx.fillStyle = '#6c757d';
+    
+    // Dividir el mensaje en líneas si es muy largo
+    const maxAncho = canvas.width * 0.9; // 90% del ancho del canvas
+    const lineas = [];
+    let lineaActual = '';
+    const palabras = mensaje.split(' ');
+    
+    palabras.forEach(palabra => {
+        const texto = lineaActual ? `${lineaActual} ${palabra}` : palabra;
+        const ancho = ctx.measureText(texto).width;
+        
+        if (ancho < maxAncho) {
+            lineaActual = texto;
+        } else {
+            lineas.push(lineaActual);
+            lineaActual = palabra;
+        }
+    });
+    
+    if (lineaActual) {
+        lineas.push(lineaActual);
+    }
+    
+    // Dibujar cada línea centrada
+    const alturaLinea = 24;
+    const inicioY = (canvas.height - (lineas.length * alturaLinea)) / 2;
+    
+    lineas.forEach((linea, index) => {
+        ctx.fillText(linea, canvas.width / 2, inicioY + (index * alturaLinea));
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar tooltips de Bootstrap
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    // -----------------------------------------------------------------
+    // GRÁFICA DE VENTAS MENSUALES DE COMBUSTIBLE (GRÁFICO DE BARRAS APILADAS)
+    // -----------------------------------------------------------------
+    const ctxVentas = document.getElementById('ventasMensualesChart');
+    // Pasar los datos de Python a JavaScript
+    const ventasData = JSON.parse('{{ ventas_mensuales_combustible | tojson | safe }}');
+    
+    // Debug: Mostrar los datos en la consola
+    console.log('Datos de ventas recibidos:', ventasData);
+
+    if (ctxVentas && ventasData && ventasData.length > 0) {
+        const monthNames = ["", "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+        
+        try {
+            // 1. Obtener meses únicos y ordenados para las etiquetas del eje X
+            const labels = [...new Set(ventasData.map(item => parseInt(item[0])))].sort((a, b) => a - b);
+            const monthLabels = labels.map(m => monthNames[m] || m);
+
+            // 2. Obtener los tipos de combustible únicos para crear los datasets
+            const tiposCombustible = [...new Set(ventasData.map(item => String(item[1])))].filter(Boolean);
+            
+            console.log('Meses encontrados:', labels);
+            console.log('Tipos de combustible:', tiposCombustible);
+
+            // Paleta de colores para los tipos de combustible
+            const backgroundColors = [
+                'rgba(30, 64, 175, 0.8)',  // Azul oscuro
+                'rgba(16, 185, 129, 0.8)', // Verde
+                'rgba(245, 158, 11, 0.8)', // Amarillo
+                'rgba(239, 68, 68, 0.8)',  // Rojo
+                'rgba(139, 92, 246, 0.8)', // Violeta
+                'rgba(20, 184, 166, 0.8)'  // Verde azulado
+            ];
+            
+            const borderColors = backgroundColors.map(color => color.replace('0.8', '1'));
+
+            // 3. Crear un dataset por cada tipo de combustible
+            const datasets = tiposCombustible.map((tipo, index) => {
+                const data = labels.map(month => {
+                    // Buscar la venta para el mes y tipo de combustible actual
+                    const entry = ventasData.find(item => 
+                        parseInt(item[0]) === month && String(item[1]) === tipo
+                    );
+                    return entry ? parseFloat(entry[2]) || 0 : 0;
+                });
+                
+                console.log(`Datos para ${tipo}:`, data);
+                
+                return {
+                    label: tipo,
+                    data: data,
+                    backgroundColor: backgroundColors[index % backgroundColors.length],
+                    borderColor: borderColors[index % borderColors.length],
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.9
+                };
+            });
+
+            new Chart(ctxVentas, {
+                type: 'bar',
+                data: {
+                    labels: monthLabels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { 
+                            beginAtZero: true, 
+                            stacked: true, 
+                            title: { 
+                                display: true, 
+                                text: 'Litros Vendidos',
+                                font: {
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return new Intl.NumberFormat('es-GT').format(value);
+                                }
+                            }
+                        },
+                        x: { 
+                            stacked: true,
+                            title: {
+                                display: true,
+                                text: 'Mes',
+                                font: {
+                                    weight: 'bold'
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                boxWidth: 12,
+                                padding: 20
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += new Intl.NumberFormat('es-GT', { 
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2 
+                                        }).format(context.parsed.y) + ' L';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 1500,
+                        easing: 'easeInOutQuart'
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error al procesar los datos de ventas:', error);
+            mostrarMensajeError(ctxVentas, 'Error al cargar los datos de ventas');
+        }
+    } else if (ctxVentas) {
+        // Mostrar un mensaje si no hay datos para la gráfica
+        mostrarMensajeError(ctxVentas, 'No hay datos de ventas de combustible para mostrar.');
+    }
+
+    // -----------------------------------------------------------------
+    // GRÁFICA DE PRODUCTOS MÁS VENDIDOS (GRÁFICO DE DONA)
+    // -----------------------------------------------------------------
+    const ctxProductos = document.getElementById('productosMasVendidosChart');
+    // Pasar los datos de Python a JavaScript
+    const productosData = JSON.parse('{{ productos_mas_vendidos | tojson | safe }}');
+    
+    // Debug: Mostrar los datos en la consola
+    console.log('Datos de productos recibidos:', productosData);
+
+    if (ctxProductos && productosData && productosData.length > 0) {
+        try {
+            // Limitar a los 10 productos más vendidos para mejor visualización
+            const productosLimitados = productosData.slice(0, 10);
+            
+            const labelsProductos = productosLimitados.map(item => {
+                // Acortar nombres largos para mejor visualización
+                const nombre = String(item[0] || 'Sin nombre');
+                return nombre.length > 20 ? nombre.substring(0, 20) + '...' : nombre;
+            });
+            
+            const dataProductos = productosLimitados.map(item => parseInt(item[1]) || 0);
+            
+            // Generar colores dinámicamente para la gráfica
+            const backgroundColors = [
+                '#16a34a', '#22c55e', '#4ade80', '#86efac', '#bbf7d0',
+                '#dcfce7', '#1e40af', '#2563eb', '#60a5fa', '#bfdbfe',
+                '#9333ea', '#a855f7', '#c084fc', '#d8b4fe', '#f0abfc',
+                '#e11d48', '#f43f5e', '#fb7185', '#fda4af', '#fecdd3'
+            ];
+
+            new Chart(ctxProductos, {
+                type: 'doughnut',
+                data: {
+                    labels: labelsProductos,
+                    datasets: [{
+                        label: 'Cantidad Vendida',
+                        data: dataProductos,
+                        backgroundColor: backgroundColors.slice(0, dataProductos.length),
+                        borderWidth: 1,
+                        hoverOffset: 15,
+                        spacing: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '60%',
+                    radius: '90%',
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                boxWidth: 12,
+                                padding: 15,
+                                font: {
+                                    size: 12
+                                },
+                                generateLabels: function(chart) {
+                                    const data = chart.data;
+                                    if (data.labels.length && data.datasets.length) {
+                                        return data.labels.map((label, i) => {
+                                            const meta = chart.getDatasetMeta(0);
+                                            const style = meta.controller.getStyle(i);
+                                            
+                                            return {
+                                                text: `${label}: ${data.datasets[0].data[i]}`,
+                                                fillStyle: style.backgroundColor,
+                                                strokeStyle: style.borderColor,
+                                                lineWidth: style.borderWidth,
+                                                hidden: isNaN(data.datasets[0].data[i]) || meta.data[i].hidden,
+                                                index: i
+                                            };
+                                        });
+                                    }
+                                    return [];
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    
+                                    return [
+                                        `${label}: ${new Intl.NumberFormat('es-GT').format(value)} unidades`,
+                                        `(${percentage}% del total)`
+                                    ];
+                                }
+                            },
+                            displayColors: false,
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleFont: { size: 14, weight: 'bold' },
+                            bodyFont: { size: 13 },
+                            padding: 12,
+                            cornerRadius: 8
+                        },
+                        title: {
+                            display: true,
+                            text: 'Top 10 Productos Más Vendidos',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            },
+                            padding: {
+                                bottom: 20
+                            }
+                        }
+                    },
+                    animation: {
+                        animateScale: true,
+                        animateRotate: true
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error al procesar los datos de productos:', error);
+            mostrarMensajeError(ctxProductos, 'Error al cargar los datos de productos');
+        }
+    } else if (ctxProductos) {
+        // Mostrar un mensaje si no hay datos para la gráfica
+        mostrarMensajeError(ctxProductos, 'No hay datos de productos vendidos para mostrar.');
+    }
+});
+</script>
+{% endblock %}

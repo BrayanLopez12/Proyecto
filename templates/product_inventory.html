@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Inventario de Productos</h2>
+    <!-- Formulario de búsqueda -->
+    <form method="get" action="{{ url_for('product_inventory') }}" class="mb-3">
+        <div class="row g-2">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <input type="text" name="search" class="form-control" placeholder="Buscar por código o nombre" value="{{ search }}">
+                    <button class="btn btn-primary" type="submit">Buscar</button>
+                    {% if search %}
+                    <a class="btn btn-outline-secondary" href="{{ url_for('product_inventory') }}" title="Limpiar búsqueda">
+                        <i class="bi bi-x-lg"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-4">
+                <select class="form-select" id="codigoFiltro" name="codigo" onchange="this.form.submit()">
+                    <option value="">Todos los códigos</option>
+                    {% for codigo in codigos %}
+                    <option value="{{ codigo }}" {% if codigo == codigo_seleccionado %}selected{% endif %}>{{ codigo }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </form>
+
+    <!-- Botón para agregar producto -->
+    <button class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#agregarProductoModal">
+        <i class="bi bi-plus-circle"></i> Agregar Producto
+    </button>
+
+    <!-- Tabla de productos -->
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th>Precio</th>
+                    <th>
+                        <div class="d-flex align-items-center">
+                            Cantidad
+                            {% if sort_cantidad == 'asc' %}
+                                <a href="{{ url_for('product_inventory', sort_cantidad='desc', search=search, codigo=codigo_seleccionado) }}" class="ms-2" title="Ordenar de mayor a menor">
+                                    <i class="bi bi-arrow-down"></i>
+                                </a>
+                            {% elif sort_cantidad == 'desc' %}
+                                <a href="{{ url_for('product_inventory', sort_cantidad='', search=search, codigo=codigo_seleccionado) }}" class="ms-2" title="Quitar ordenamiento">
+                                    <i class="bi bi-x"></i>
+                                </a>
+                            {% else %}
+                                <a href="{{ url_for('product_inventory', sort_cantidad='asc', search=search, codigo=codigo_seleccionado) }}" class="ms-2" title="Ordenar de menor a mayor">
+                                    <i class="bi bi-arrow-up"></i>
+                                </a>
+                            {% endif %}
+                        </div>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for producto in productos %}
+                <tr>
+                    <td>{{ producto.Codigo }}</td>
+                    <td>{{ producto.Nombre }}</td>
+                    <td>Q{{ "%.2f"|format(producto.Precio) }}</td>
+                    <td>{{ producto.Cantidad }}</td>
+                    <td>
+                        <!-- Botón Editar -->
+                        <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#editarProductoModal{{ producto.ProductoID }}">
+                            <i class="bi bi-pencil-square"></i> Editar
+                        </button>
+                        <!-- Botón Eliminar -->
+                        <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#eliminarProductoModal{{ producto.ProductoID }}">
+                            <i class="bi bi-trash"></i> Eliminar
+                        </button>
+                    </td>
+                </tr>
+
+                <!-- Modal Editar Producto -->
+                <div class="modal fade" id="editarProductoModal{{ producto.ProductoID }}" tabindex="-1" aria-labelledby="editarProductoLabel{{ producto.ProductoID }}" aria-hidden="true">
+                  <div class="modal-dialog">
+                    <form method="post" action="{{ url_for('product_inventory') }}">
+                      <div class="modal-content">
+                        <div class="modal-header">
+                          <h5 class="modal-title" id="editarProductoLabel{{ producto.ProductoID }}">Editar Producto</h5>
+                          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                        </div>
+                        <div class="modal-body">
+                          <input type="hidden" name="producto_id" value="{{ producto.ProductoID }}">
+                          <div class="mb-3">
+                            <label for="codigo{{ producto.ProductoID }}" class="form-label">Código</label>
+                            <input type="text" class="form-control" id="codigo{{ producto.ProductoID }}" name="codigo" value="{{ producto.Codigo }}" required>
+                          </div>
+                          <div class="mb-3">
+                            <label for="nombre{{ producto.ProductoID }}" class="form-label">Nombre</label>
+                            <input type="text" class="form-control" id="nombre{{ producto.ProductoID }}" name="nombre" value="{{ producto.Nombre }}" required>
+                          </div>
+                          <div class="mb-3">
+                            <label for="precio{{ producto.ProductoID }}" class="form-label">Precio</label>
+                            <input type="number" step="0.01" class="form-control" id="precio{{ producto.ProductoID }}" name="precio" value="{{ producto.Precio }}" required>
+                          </div>
+                          <div class="mb-3">
+                            <label for="cantidad{{ producto.ProductoID }}" class="form-label">Cantidad</label>
+                            <input type="number" class="form-control" id="cantidad{{ producto.ProductoID }}" name="cantidad" value="{{ producto.Cantidad }}" required>
+                          </div>
+                        </div>
+                        <div class="modal-footer">
+                          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                          <button type="submit" name="guardar_producto" class="btn btn-primary">Guardar Cambios</button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+
+                <!-- Modal Eliminar Producto -->
+                <div class="modal fade" id="eliminarProductoModal{{ producto.ProductoID }}" tabindex="-1" aria-labelledby="eliminarProductoLabel{{ producto.ProductoID }}" aria-hidden="true">
+                  <div class="modal-dialog">
+                    <form method="post" action="{{ url_for('eliminar_producto', id=producto.ProductoID) }}">
+                      <div class="modal-content">
+                        <div class="modal-header">
+                          <h5 class="modal-title" id="eliminarProductoLabel{{ producto.ProductoID }}">Eliminar Producto</h5>
+                          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                        </div>
+                        <div class="modal-body">
+                          ¿Estás seguro de que deseas eliminar el producto <strong>{{ producto.Nombre }}</strong>?
+                        </div>
+                        <div class="modal-footer">
+                          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                          <button type="submit" class="btn btn-danger">Eliminar</button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Paginación -->
+    <nav>
+      <ul class="pagination justify-content-center">
+        {% set total_pages = (total // per_page) + (1 if total % per_page > 0 else 0) %}
+        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('product_inventory', page=page-1, search=search, codigo=codigo_seleccionado, sort_cantidad=sort_cantidad) }}">Anterior</a>
+        </li>
+        {% for p in range(1, total_pages + 1) %}
+        <li class="page-item {% if p == page %}active{% endif %}">
+          <a class="page-link" href="{{ url_for('product_inventory', page=p, search=search, codigo=codigo_seleccionado, sort_cantidad=sort_cantidad) }}">{{ p }}</a>
+        </li>
+        {% endfor %}
+        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('product_inventory', page=page+1, search=search, codigo=codigo_seleccionado, sort_cantidad=sort_cantidad) }}">Siguiente</a>
+        </li>
+      </ul>
+    </nav>
+</div>
+
+<!-- Modal Agregar Producto -->
+<div class="modal fade" id="agregarProductoModal" tabindex="-1" aria-labelledby="agregarProductoLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="post" action="{{ url_for('product_inventory') }}">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="agregarProductoLabel">Agregar Producto</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="codigoNuevo" class="form-label">Código</label>
+            <input type="text" class="form-control" id="codigoNuevo" name="codigo" required>
+          </div>
+          <div class="mb-3">
+            <label for="nombreNuevo" class="form-label">Nombre</label>
+            <input type="text" class="form-control" id="nombreNuevo" name="nombre" required>
+          </div>
+          <div class="mb-3">
+            <label for="precioNuevo" class="form-label">Precio</label>
+            <input type="number" step="0.01" class="form-control" id="precioNuevo" name="precio" required>
+          </div>
+          <div class="mb-3">
+            <label for="cantidadNuevo" class="form-label">Cantidad</label>
+            <input type="number" class="form-control" id="cantidadNuevo" name="cantidad" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" name="guardar_producto" class="btn btn-success">Agregar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

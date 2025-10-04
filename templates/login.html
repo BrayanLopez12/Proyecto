@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Iniciar Sesión - PetrolPetapa{% endblock %}
+
+{% block extra_css %}
+<style>
+    .login-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+    }
+    .login-card {
+        width: 100%;
+        max-width: 420px;
+        background: white;
+        border-radius: 1rem;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        animation: fadeIn 0.5s ease-out;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .login-header {
+        background-color: var(--primary-color);
+        color: white;
+        padding: 2rem;
+        text-align: center;
+    }
+    .login-body {
+        padding: 2.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block login_content %}
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <h3>Bienvenido a PetrolPetapa</h3>
+            <p class="mb-0 opacity-75">Sistema de Gestión de Inventario</p>
+        </div>
+        <div class="login-body">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category if category != 'error' else 'danger' }} mb-3" role="alert">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            <form method="POST" action="{{ url_for('login') }}">
+                <div class="mb-3">
+                    <label for="usuario" class="form-label">Usuario</label>
+                    <input type="text" class="form-control" id="usuario" name="usuario" required>
+                </div>
+                <div class="mb-4">
+                    <label for="contrasena" class="form-label">Contraseña</label>
+                    <input type="password" class="form-control" id="contrasena" name="contrasena" required>
+                </div>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary btn-lg">Iniciar Sesión</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
