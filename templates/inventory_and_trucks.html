@@ -1,6 +1,27 @@
 {% extends 'base.html' %}
 {% block title %}Inventario de Combustible y Registro de Pipas{% endblock %}
 {% block content %}
+<div class="mb-3">
+  <h5 class="fw-bold text-success">Saldos Actuales por Tipo de Combustible</h5>
+  <div class="table-responsive">
+    <table class="table table-bordered table-sm mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Tipo</th>
+          <th>Saldo Actual</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tipo, saldo in saldos_actuales.items() %}
+        <tr>
+          <td>{{ tipo }}</td>
+          <td>{{ "{:,.2f}".format(saldo) }} L</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 <div class="card shadow-sm mb-4">
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -50,7 +71,9 @@
                     <td>
                       {% if registro.EsAutomatico != 1 and registro.EsAutomatico != '1' %}
                         <a href="#" class="text-primary me-2 btn-editar" data-bs-toggle="modal" data-bs-target="#editarModal{{ registro.InventarioID }}"><i class="bi bi-pencil-square"></i></a>
-                        <a href="#" class="text-danger me-2 btn-eliminar" data-bs-toggle="modal" data-bs-target="#eliminarModal{{ registro.InventarioID }}"><i class="bi bi-trash"></i></a>
+                        {% if session.get('rol') == 'admin' %}
+                          <a href="#" class="text-danger me-2 btn-eliminar" data-bs-toggle="modal" data-bs-target="#eliminarModal{{ registro.InventarioID }}"><i class="bi bi-trash"></i></a>
+                        {% endif %}
                       {% endif %}
                     </td>
                   </tr>
@@ -90,47 +113,9 @@
               <i class="bi bi-plus-lg"></i> Nueva Pipa
           </a>
       </div>
-      <div class="row" id="contenedor-pipas">
-          {% for pipa in pipas %}
-          <div class="col-md-4 mb-3">
-              <div class="card h-100">
-                  <div class="card-body">
-                      <div class="d-flex justify-content-between align-items-start">
-                          <h5 class="card-title mb-0">Pipa #{{ '%03d' % pipa.id }}</h5>
-                          <span class="badge {{ 'bg-success' if pipa.estado == 'Activa' else 'bg-warning text-dark' }}">
-                              {{ pipa.estado }}
-                          </span>
-                      </div>
-                      <p class="card-text mt-2">
-                          <strong>Placa:</strong> {{ pipa.placa }}<br>
-                          <strong>Capacidad:</strong> {{ "{:,.0f}".format(pipa.capacidad|float) }} L<br>
-                          <strong>Tipo:</strong> {{ pipa.tipo_combustible }}<br>
-                          <strong>Conductor asignado:</strong> {{ pipa.conductor_asignado }}<br>
-                          <strong>Estado:</strong> {{ pipa.estado }}<br>
-                          <strong>Ubicación actual:</strong> {{ pipa.ubicacion_actual }}<br>
-                          <strong>Último mantenimiento:</strong>
-                              {% if pipa.ultimo_mantenimiento %}
-                                  {{ pipa.ultimo_mantenimiento.strftime('%d-%m-%Y') }}
-                              {% endif %}
-                              <br>
-                          <strong>Próximo Mantenimiento:</strong>
-                              {% if pipa.proximo_mantenimiento %}
-                                  {{ pipa.proximo_mantenimiento.strftime('%d-%m-%Y') }}
-                              {% endif %}
-                      </p>
-                      <a href="#" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editarPipaModal{{ pipa.id }}">
-                          <i class="bi bi-pencil-square"></i> Editar
-                      </a>
-                      <a href="#" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#eliminarPipaModal{{ pipa.id }}">
-                          <i class="bi bi-trash"></i> Eliminar
-                      </a>
-                  </div>
-              </div>
-          </div>
-          {% else %}
-          <div class="col-12 text-center text-muted">No hay pipas registradas.</div>
-          {% endfor %}
-      </div>
+    <div class="row" id="contenedor-pipas">
+      {% include '_pipas_list.html' %}
+    </div>
   </div>
 </div>
 
@@ -214,7 +199,7 @@
           </div>
           <div class="mb-2">
             <label>Inventario Inicial</label>
-            <input type="number" name="inventario_inicial" class="form-control" id="inventario-inicial" required readonly>
+            <input type="text" name="inventario_inicial" class="form-control" id="inventario-inicial" required readonly>
           </div>
           <div class="mb-2">
             <label>Entrada</label>
@@ -226,7 +211,7 @@
           </div>
           <div class="mb-2">
             <label>Inventario Final</label>
-            <input type="number" name="inventario_final" class="form-control" id="inventario-final" readonly>
+            <input type="text" name="inventario_final" class="form-control" id="inventario-final" readonly>
           </div>
           <div class="mb-2">
             <label>Fecha</label>
@@ -324,6 +309,68 @@
 {% endfor %}
 
 <!-- Modales de edición y eliminación -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Para todos los modales de edición de inventario
+    document.querySelectorAll('[id^="editarModal"]').forEach(function(modal) {
+      const inventarioInicialInput = modal.querySelector('input[name="inventario_inicial"]');
+      const entradaInput = modal.querySelector('input[name="entrada"]');
+      const salidaInput = modal.querySelector('input[name="salida"]');
+      const inventarioFinalInput = modal.querySelector('input[name="inventario_final"]');
+      if (entradaInput && salidaInput && inventarioInicialInput && inventarioFinalInput) {
+        function alternarBloqueoCampos() {
+          // Si Entrada tiene valor, bloquear Salida
+          if (entradaInput.value && parseFloat(entradaInput.value) > 0) {
+            salidaInput.value = '';
+            salidaInput.disabled = true;
+          } else {
+            salidaInput.disabled = false;
+          }
+          // Si Salida tiene valor, bloquear Entrada
+          if (salidaInput.value && parseFloat(salidaInput.value) > 0) {
+            entradaInput.value = '';
+            entradaInput.disabled = true;
+          } else {
+            entradaInput.disabled = false;
+          }
+        }
+
+        // Restaurar valores originales al abrir el modal
+        modal.addEventListener('show.bs.modal', function() {
+          inventarioInicialInput.value = inventarioInicialInput.getAttribute('data-original');
+          entradaInput.value = entradaInput.getAttribute('data-original');
+          salidaInput.value = salidaInput.getAttribute('data-original');
+          inventarioFinalInput.value = inventarioFinalInput.getAttribute('data-original');
+          calcularInventarioFinalEdicion();
+        });
+        function calcularInventarioFinalEdicion() {
+          // Forzar conversión numérica robusta para evitar concatenación de strings
+          const inicial = parseFloat((inventarioInicialInput.value || '0').replace(/,/g, '')) || 0;
+          let entradaRaw = (entradaInput.value || '').replace(/,/g, '').trim();
+          let salidaRaw = (salidaInput.value || '').replace(/,/g, '').trim();
+          let entradaCalc = parseFloat(entradaRaw);
+          let salidaCalc = parseFloat(salidaRaw);
+          if (isNaN(entradaCalc)) entradaCalc = 0;
+          if (isNaN(salidaCalc)) salidaCalc = 0;
+          // Si los valores son demasiado grandes para JS, limitar a Number.MAX_SAFE_INTEGER
+          if (entradaCalc > Number.MAX_SAFE_INTEGER) entradaCalc = Number.MAX_SAFE_INTEGER;
+          if (salidaCalc > Number.MAX_SAFE_INTEGER) salidaCalc = Number.MAX_SAFE_INTEGER;
+          const final = inicial + entradaCalc - salidaCalc;
+          inventarioFinalInput.value = final.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+        entradaInput.addEventListener('input', calcularInventarioFinalEdicion);
+        salidaInput.addEventListener('input', calcularInventarioFinalEdicion);
+        // Bloqueo dinámico de campos
+        entradaInput.addEventListener('input', alternarBloqueoCampos);
+        salidaInput.addEventListener('input', alternarBloqueoCampos);
+        modal.addEventListener('shown.bs.modal', function() {
+          calcularInventarioFinalEdicion();
+          alternarBloqueoCampos();
+        });
+      }
+    });
+  });
+</script>
 {% for registro in registros %}
 <!-- Modal para editar registro de inventario -->
 <div class="modal fade" id="editarModal{{ registro.InventarioID }}" tabindex="-1" aria-labelledby="editarModalLabel{{ registro.InventarioID }}" aria-hidden="true">
@@ -343,19 +390,19 @@
                   </div>
                   <div class="mb-2">
                       <label>Inventario Inicial</label>
-                      <input type="number" name="inventario_inicial" class="form-control" value="{{ registro.InventarioInicial }}" readonly>
+                      <input type="text" name="inventario_inicial" class="form-control" value="{{ "{:,.2f}".format(registro.InventarioInicial|float) }}" readonly data-original="{{ "{:,.2f}".format(registro.InventarioInicial|float) }}">
                   </div>
                   <div class="mb-2">
                       <label>Entrada</label>
-                      <input type="number" name="entrada" class="form-control" value="{{ registro.Entrada|float }}" required>
+                      <input type="number" name="entrada" class="form-control" value="{{ registro.Entrada|float if registro.Entrada|float != 0 else '' }}" data-original="{{ registro.Entrada|float if registro.Entrada|float != 0 else '' }}">
                   </div>
                   <div class="mb-2">
                       <label>Salida</label>
-                      <input type="number" name="salida" class="form-control" value="{{ registro.Salida|float }}" required>
+                      <input type="number" name="salida" class="form-control" value="{{ registro.Salida|float if registro.Salida|float != 0 else '' }}" data-original="{{ registro.Salida|float if registro.Salida|float != 0 else '' }}">
                   </div>
                   <div class="mb-2">
                       <label>Inventario Final</label>
-                      <input type="number" name="inventario_final" class="form-control" value="{{ registro.InventarioFinal|float }}" readonly>
+                      <input type="text" name="inventario_final" class="form-control" value="{{ "{:,.2f}".format(registro.InventarioFinal|float) }}" readonly data-original="{{ "{:,.2f}".format(registro.InventarioFinal|float) }}">
                   </div>
                   <div class="mb-2">
                       <label>Fecha</label>
@@ -402,12 +449,15 @@
       const salidaInput = document.getElementById('salida');
       const inventarioFinalInput = document.getElementById('inventario-final');
   
-      function calcularInventarioFinal() {
-          const inicial = parseFloat(inventarioInicialInput.value) || 0;
-          const entrada = parseFloat(entradaInput.value) || 0;
-          const salida = parseFloat(salidaInput.value) || 0;
-          inventarioFinalInput.value = (inicial + entrada - salida).toFixed(2);
-      }
+    function calcularInventarioFinal() {
+      // Quitar comas del inventario inicial antes de convertir a número
+      const inicial = parseFloat(inventarioInicialInput.value.replace(/,/g, '')) || 0;
+      const entrada = parseFloat(entradaInput.value) || 0;
+      const salida = parseFloat(salidaInput.value) || 0;
+      const final = inicial + entrada - salida;
+      // Mostrar con separador de miles
+      inventarioFinalInput.value = final.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
   
       // Cuando cambia el tipo de combustible, consulta el inventario inicial
       if (tipoCombustibleSelect) {
@@ -416,7 +466,7 @@
               fetch(`/obtener_inventario_inicial?tipo=${tipo}`)
                   .then(response => response.json())
                   .then(data => {
-                      inventarioInicialInput.value = data.inventario_inicial || 0;
+                      inventarioInicialInput.value = (data.inventario_inicial ? Number(data.inventario_inicial).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00');
                       calcularInventarioFinal();
                   });
           });
@@ -489,8 +539,8 @@
               }
           }
       });
-  });
-  </script>
+    });
+    </script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
         const hoy = new Date();
@@ -527,25 +577,25 @@
       fetch(`/obtener_inventario_inicial?tipo=${tipo}`)
         .then(response => response.json())
         .then(data => {
-          document.querySelector('input[name="inventario_inicial"]').value = data.inventario_inicial || 0;
+          document.querySelector('input[name="inventario_inicial"]').value = (data.inventario_inicial ? Number(data.inventario_inicial).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00');
           // Opcional: recalcula el inventario final si ya hay entrada/salida
-          document.querySelector('input[name="inventario_final"]').value = calculateFinalInventory();
+          document.querySelector('input[name="inventario_final"]').value = Number(calculateFinalInventory()).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         })
         .catch(error => console.error('Error al obtener el inventario inicial:', error));
   }
   
   function toggleSalida(input) {
       document.getElementById('salida').disabled = input.value !== '';
-      document.querySelector('input[name="inventario_final"]').value = calculateFinalInventory();
+  document.querySelector('input[name="inventario_final"]').value = Number(calculateFinalInventory()).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   }
   
   function toggleEntrada(input) {
       document.getElementById('entrada').disabled = input.value !== '';
-      document.querySelector('input[name="inventario_final"]').value = calculateFinalInventory();
+  document.querySelector('input[name="inventario_final"]').value = Number(calculateFinalInventory()).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   }
   
   function calculateFinalInventory() {
-      const inventarioInicial = parseFloat(document.querySelector('input[name="inventario_inicial"]').value) || 0;
+  const inventarioInicial = parseFloat(document.querySelector('input[name="inventario_inicial"]').value.replace(/,/g, '')) || 0;
       const entrada = parseFloat(document.getElementById('entrada').value) || 0;
       const salida = parseFloat(document.getElementById('salida').value) || 0;
       return inventarioInicial + entrada - salida;
@@ -561,49 +611,5 @@
   }
   </script>
 
-  <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Selecciona todos los formularios de edición de inventario
-    document.querySelectorAll('form[action*="editar_registro"]').forEach(function(form) {
-        const entradaInput = form.querySelector('input[name="entrada"]');
-        const salidaInput = form.querySelector('input[name="salida"]');
-        const inventarioInicialInput = form.querySelector('input[name="inventario_inicial"]');
-        const inventarioFinalInput = form.querySelector('input[name="inventario_final"]');
-
-        function recalcularInventarioFinal() {
-            const inicial = parseFloat(inventarioInicialInput.value) || 0;
-            const entrada = parseFloat(entradaInput.value) || 0;
-            const salida = parseFloat(salidaInput.value) || 0;
-            inventarioFinalInput.value = (inicial + entrada - salida).toFixed(2);
-        }
-
-        function alternarCampos() {
-            if (entradaInput.value && parseFloat(entradaInput.value) > 0) {
-                salidaInput.value = '';
-                salidaInput.disabled = true;
-            } else {
-                salidaInput.disabled = false;
-            }
-
-            if (salidaInput.value && parseFloat(salidaInput.value) > 0) {
-                entradaInput.value = '';
-                entradaInput.disabled = true;
-            } else {
-                entradaInput.disabled = false;
-            }
-            recalcularInventarioFinal();
-        }
-
-        if (entradaInput && salidaInput) {
-            entradaInput.addEventListener('input', alternarCampos);
-            salidaInput.addEventListener('input', alternarCampos);
-        }
-
-        // Al abrir el modal, recalcula el inventario final
-        form.closest('.modal').addEventListener('show.bs.modal', function () {
-            alternarCampos();
-        });
-    });
-});
-</script>
+<!-- Eliminado script duplicado de cálculo de inventario final para evitar conflictos y errores -->
 {% endblock %}

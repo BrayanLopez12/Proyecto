@@ -1,3 +1,6 @@
+# --- IMPORT NECESARIO PARA RUTAS DE USUARIOS ---
+import pyodbc
+
 from functools import wraps
 from flask import Flask, flash, jsonify, make_response, render_template, redirect, request, session, url_for , send_file, abort# type: ignore
 from conexion import DatabaseAuthenticator
@@ -30,6 +33,22 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def roles_required(*roles):
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if 'usuario' not in session:
+                session['next_url'] = request.url
+                flash('Debes iniciar sesión para acceder a esta página.', 'warning')
+                return redirect(url_for('login'))
+            user_role = session.get('rol')
+            if user_role not in roles:
+                flash('No tienes permisos para realizar esta acción.', 'danger')
+                return redirect(url_for('dashboard'))
+            session.modified = True
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
 
 
 @app.route('/')
@@ -53,11 +72,14 @@ def login():
             flash('Por favor ingrese usuario y contraseña', 'warning')
         else:
             db_auth = DatabaseAuthenticator()
-            if db_auth.authenticate_user(usuario, contrasena):
+            user = db_auth.authenticate_user(usuario, contrasena)
+            if user:
                 # Configurar la sesión
-                session['usuario'] = usuario
+                session['usuario'] = user['usuario']
+                session['usuario_id'] = user['id']
+                session['rol'] = user.get('rol', 'encargado')
                 session['_fresh'] = True
-                
+
                 # Redirigir a la página solicitada originalmente o al dashboard
                 next_page = session.pop('next_url', None)
                 return redirect(next_page or url_for('dashboard'))
@@ -120,19 +142,9 @@ def logout():
 @app.route('/fuel-inventory', methods=['GET', 'POST'])
 @login_required
 def fuel_inventory():
-    db_auth = DatabaseAuthenticator()
-    if request.method == 'POST':
-        tipo = request.form['tipo']
-        inventario_inicial = request.form['inventario_inicial']
-        entrada = request.form['entrada']
-        salida = request.form['salida']
-        inventario_final = request.form['inventario_final']
-        fecha = request.form['fecha']
-        db_auth.agregar_registro_inventario(tipo, inventario_inicial, entrada, salida, inventario_final, fecha)
-        flash('Registro de inventario agregado correctamente')
-        return redirect(url_for('fuel_inventory'))
-    registros = db_auth.obtener_todos_los_registros_inventario()
-    return render_template('fuel_inventory.html', registros=registros)
+    # Ruta antigua redirigida al nuevo módulo unificado
+    flash('La gestión de inventario fue movida a Inventario y Pipas.', 'info')
+    return redirect(url_for('inventory_and_trucks'))
 
 @app.route('/truck-registry', methods=['GET', 'POST'])
 @login_required
@@ -181,9 +193,9 @@ def inventory_and_trucks():
         form_type = request.form.get('form_type')
         if form_type == 'inventario':
             tipo_id = int(request.form['tipo'])
-            inventario_inicial = float(request.form.get('inventario_inicial') or 0)
-            entrada = float(request.form.get('entrada') or 0)
-            salida = float(request.form.get('salida') or 0)
+            inventario_inicial = float((request.form.get('inventario_inicial') or '0').replace(',', ''))
+            entrada = float((request.form.get('entrada') or '0').replace(',', ''))
+            salida = float((request.form.get('salida') or '0').replace(',', ''))
             inventario_final = inventario_inicial + entrada - salida
             fecha = request.form['fecha']
             db_auth.agregar_registro_inventario(tipo_id, inventario_inicial, entrada, salida, inventario_final, fecha)
@@ -235,6 +247,7 @@ def inventory_and_trucks():
 
     pipas = db_auth.obtener_todas_las_pipas()
 
+    saldos_actuales = db_auth.obtener_saldos_actuales_todos()
     return render_template(
         'inventory_and_trucks.html',
         registros=registros_con_nombre,
@@ -245,7 +258,8 @@ def inventory_and_trucks():
         total=total,
         per_page=per_page,
         mes=mes,
-        anio=anio
+        anio=anio,
+        saldos_actuales=saldos_actuales
     )
 @app.route('/inventario')
 @login_required
@@ -260,8 +274,12 @@ def inventario():
 def obtener_inventario_inicial():
     tipo_id = request.args.get('tipo')  # <-- Ya es el ID
     db_auth = DatabaseAuthenticator()
-    inventario_inicial = db_auth.obtener_ultimo_inventario_final(tipo_id)
-    return jsonify({'inventario_inicial': float(inventario_inicial or 0)})
+    inventario_inicial = db_auth.obtener_saldo_actual(tipo_id)
+    try:
+        inventario_inicial = float(inventario_inicial)
+    except Exception:
+        inventario_inicial = 0.0
+    return jsonify({'inventario_inicial': inventario_inicial})
 
 
 @app.route('/editar_registro/<int:id>', methods=['POST'])
@@ -270,9 +288,12 @@ def editar_registro(id):
     db_auth = DatabaseAuthenticator()
     print("DEBUG tipo recibido:", request.form['tipo'])
     tipo_id = int(request.form['tipo'])  # <-- Ahora recibimos el ID
-    inventario_inicial = float(request.form['inventario_inicial'])
-    entrada = float(request.form.get('entrada', 0) or 0)
-    salida = float(request.form.get('salida', 0) or 0)
+    inventario_inicial = float((request.form['inventario_inicial'] or '0').replace(',', ''))
+    entrada = float((request.form.get('entrada', 0) or '0').replace(',', ''))
+    salida = float((request.form.get('salida', 0) or '0').replace(',', ''))
+    if entrada == 0 and salida == 0:
+        flash('No se puede guardar un registro con Entrada y Salida vacíos o en 0. Debe haber al menos un movimiento.', 'danger')
+        return redirect(url_for('inventory_and_trucks'))
     inventario_final = inventario_inicial + entrada - salida
     fecha = request.form['fecha']
     db_auth.actualizar_registro_inventario(
@@ -284,11 +305,18 @@ def editar_registro(id):
         inventario_final,
         fecha
     )
+    # Actualización en cascada de registros posteriores
+    db_auth.actualizar_cascada_inventario(id, tipo_id, inventario_final, fecha)
     return redirect(url_for('inventory_and_trucks'))
 
 @app.route('/eliminar_registro/<int:id>', methods=['POST'])
 @login_required
 def eliminar_registro(id):
+    usuario = session.get('usuario', '').lower()
+    rol = session.get('rol', '').lower()
+    if rol != 'admin' and usuario != 'adminprueba':
+        flash('No tienes permisos para eliminar registros.', 'danger')
+        return redirect(url_for('inventory_and_trucks'))
     db_auth = DatabaseAuthenticator()
     db_auth.eliminar_registro_inventario(id)
     flash('Registro eliminado correctamente')
@@ -320,6 +348,11 @@ def editar_pipa(id):
 @app.route('/eliminar_pipa/<int:id>', methods=['POST'])
 @login_required
 def eliminar_pipa(id):
+    usuario = session.get('usuario', '').lower()
+    rol = session.get('rol', '').lower()
+    if rol != 'admin' and usuario != 'adminprueba':
+        flash('No tienes permisos para eliminar pipas.', 'danger')
+        return redirect(url_for('inventory_and_trucks'))
     db_auth = DatabaseAuthenticator()
     db_auth.eliminar_pipa(id)
     flash('Pipa eliminada correctamente')
@@ -352,16 +385,17 @@ def agregar_pipa_ajax():
 def listar_pipas_ajax():
     db_auth = DatabaseAuthenticator()
     pipas = db_auth.obtener_todas_las_pipas()
-    tipos_combustible = db_auth.obtener_tipos_combustible_con_id()
-    return render_template(
-        'inventory_and_trucks.html',
-        pipas=pipas,
-        tipos_combustible=tipos_combustible,
-    )
+    # Devolver solo el fragmento de HTML con la lista de pipas
+    return render_template('_pipas_list.html', pipas=pipas)
 
 @app.route('/eliminar_producto/<int:id>', methods=['POST'])
 @login_required
 def eliminar_producto(id):
+    usuario = session.get('usuario', '').lower()
+    rol = session.get('rol', '').lower()
+    if rol != 'admin' and usuario != 'adminprueba':
+        flash('No tienes permisos para eliminar productos.', 'danger')
+        return redirect(url_for('product_inventory'))
     db_auth = DatabaseAuthenticator()
     db_auth.eliminar_producto(id)
     flash('Producto eliminado correctamente')
@@ -621,72 +655,138 @@ def registrar_venta_combustible():
     return redirect(url_for('ventas_combustible', tab='nueva'))
 
 
+
+# --- NUEVAS RUTAS PARA FILTROS INDEPENDIENTES ---
 @app.route('/estadisticas_combustible', methods=['GET'])
 @login_required
 def estadisticas_combustible():
     db_auth = DatabaseAuthenticator()
-    
-    # Obtener parámetros de filtro para ventas de combustible
+    # Filtros de ventas de combustible
     cliente_combustible_id = request.args.get('cliente_combustible')
     mes_combustible = request.args.get('mes_combustible')
     anio_combustible = request.args.get('anio_combustible')
-
-    # Obtener parámetros de filtro para productos más vendidos
+    # Filtros de productos más vendidos
     cliente_producto_id = request.args.get('cliente_producto')
     mes_producto = request.args.get('mes_producto')
     anio_producto = request.args.get('anio_producto')
+    # Datos filtrados para mostrar en la gráfica
+    ventas_raw = db_auth.obtener_ventas_mensuales_combustible_agrupadas(
+        cliente_id=cliente_combustible_id,
+        mes=mes_combustible,
+        anio=anio_combustible
+    )
+    # Datos completos para extraer todos los años posibles
+    ventas_raw_todos = db_auth.obtener_ventas_mensuales_combustible_agrupadas()
+    ventas_mensuales_combustible = []
+    ventas_mensuales_combustible = []
+    for row in ventas_raw:
+        mes = int(row[0])
+        tipo_combustible = str(row[1])
+        total_litros = float(row[2]) if row[2] is not None else 0.0
+        anio = int(row[3]) if len(row) > 3 and row[3] is not None else None
+        ventas_mensuales_combustible.append([mes, tipo_combustible, total_litros, anio])
+    ventas_mensuales_combustible.sort(key=lambda x: (x[3], x[0]))
+    # Extraer todos los años posibles de los datos completos
+    anios_ventas = set()
+    for row in ventas_raw_todos:
+        if len(row) > 3 and row[3] is not None:
+            anios_ventas.add(int(row[3]))
+    anios_ventas = sorted(anios_ventas)
 
-    try:
-        # Obtener los datos crudos de la base de datos
-        ventas_raw = db_auth.obtener_ventas_mensuales_combustible_agrupadas(
-            cliente_id=cliente_combustible_id,
-            mes=mes_combustible,
-            anio=anio_combustible
-        )
-        
+    # Productos filtrados para mostrar
+    if cliente_producto_id or mes_producto or anio_producto:
+            productos_raw = db_auth.obtener_productos_mas_vendidos(cliente_id=cliente_producto_id, mes=mes_producto, anio=anio_producto)
+    else:
+        productos_raw = db_auth.obtener_productos_mas_vendidos()
+    productos_mas_vendidos = []
+    for row in productos_raw:
+        nombre_producto = str(row[0])
+        cantidad = int(row[1]) if row[1] is not None else 0
+        anio = int(row[2]) if len(row) > 2 and row[2] is not None else None
+        productos_mas_vendidos.append([nombre_producto, cantidad, anio])
+    # Extraer todos los años posibles de productos (sin filtro)
+    productos_raw_todos = db_auth.obtener_productos_mas_vendidos()
+    anios_productos = set()
+    for row in productos_raw_todos:
+        if len(row) > 2 and row[2] is not None:
+            anios_productos.add(int(row[2]))
+    anios_productos = sorted(anios_productos)
+
+    clientes = db_auth.obtener_todos_los_clientes()
+    return render_template(
+        'estadisticas_combustible.html',
+        ventas_mensuales_combustible=ventas_mensuales_combustible,
+        productos_mas_vendidos=productos_mas_vendidos,
+        clientes=clientes,
+        anios_ventas=anios_ventas,
+        anios_productos=anios_productos
+    )
+
+@app.route('/estadisticas_productos', methods=['GET'])
+@login_required
+def estadisticas_productos():
+    db_auth = DatabaseAuthenticator()
+    # Filtros de productos más vendidos
+    cliente_producto_id = request.args.get('cliente_producto')
+    mes_producto = request.args.get('mes_producto')
+    anio_producto = request.args.get('anio_producto')
+    # Filtros de ventas de combustible
+    cliente_combustible_id = request.args.get('cliente_combustible')
+    mes_combustible = request.args.get('mes_combustible')
+    anio_combustible = request.args.get('anio_combustible')
+    # Solo aplicar filtros de productos a productos, y de ventas a ventas
+    # Si se envió algún filtro de productos, aplicar el filtro; si no, mostrar todos
+    if cliente_producto_id or mes_producto or anio_producto:
         productos_raw = db_auth.obtener_productos_mas_vendidos(
             cliente_id=cliente_producto_id,
             mes=mes_producto,
             anio=anio_producto
         )
+    else:
+        productos_raw = db_auth.obtener_productos_mas_vendidos()
+    productos_mas_vendidos = []
+    for row in productos_raw:
+        nombre_producto = str(row[0])
+        cantidad = int(row[1]) if row[1] is not None else 0
+        anio = int(row[2]) if len(row) > 2 and row[2] is not None else None
+        productos_mas_vendidos.append([nombre_producto, cantidad, anio])
 
-        # Formatear los datos para las gráficas
-        ventas_mensuales_combustible = []
-        for row in ventas_raw:
-            # Asegurarse de que cada valor tenga el tipo correcto
-            mes = int(row[0])
-            tipo_combustible = str(row[1])
-            total_litros = float(row[2]) if row[2] is not None else 0.0
-            ventas_mensuales_combustible.append([mes, tipo_combustible, total_litros])
-        
-        # Ordenar por mes para asegurar el orden correcto en la gráfica
-        ventas_mensuales_combustible.sort(key=lambda x: x[0])
-        
-        # Formatear productos más vendidos
-        productos_mas_vendidos = []
-        for row in productos_raw:
-            nombre_producto = str(row[0])
-            cantidad = int(row[1]) if row[1] is not None else 0
-            productos_mas_vendidos.append([nombre_producto, cantidad])
+    ventas_raw = db_auth.obtener_ventas_mensuales_combustible_agrupadas(
+        cliente_id=cliente_combustible_id,
+        mes=mes_combustible,
+        anio=anio_combustible
+    )
+    ventas_mensuales_combustible = []
+    for row in ventas_raw:
+        mes = int(row[0])
+        tipo_combustible = str(row[1])
+        total_litros = float(row[2]) if row[2] is not None else 0.0
+        anio = int(row[3]) if len(row) > 3 and row[3] is not None else None
+        ventas_mensuales_combustible.append([mes, tipo_combustible, total_litros, anio])
+    ventas_mensuales_combustible.sort(key=lambda x: (x[3], x[0]))
 
-    except Exception as e:
-        print(f"Error al obtener datos para gráficas: {str(e)}")
-        flash(f"Ocurrió un error al obtener los datos: {e}", "danger")
-        ventas_mensuales_combustible = []
-        productos_mas_vendidos = []
+    # Extraer todos los años posibles de los datos completos
+    ventas_raw_todos = db_auth.obtener_ventas_mensuales_combustible_agrupadas()
+    anios_ventas = set()
+    for row in ventas_raw_todos:
+        if len(row) > 3 and row[3] is not None:
+            anios_ventas.add(int(row[3]))
+    anios_ventas = sorted(anios_ventas)
+    productos_raw_todos = db_auth.obtener_productos_mas_vendidos()
+    anios_productos = set()
+    for row in productos_raw_todos:
+        if len(row) > 2 and row[2] is not None:
+            anios_productos.add(int(row[2]))
+    anios_productos = sorted(anios_productos)
 
-    # Obtener lista de clientes para los filtros
     clientes = db_auth.obtener_todos_los_clientes()
-
-    # Debug: Imprimir datos que se enviarán a la plantilla
-    print("Datos de ventas mensuales:", ventas_mensuales_combustible)
-    print("Productos más vendidos:", productos_mas_vendidos)
-
     return render_template(
         'estadisticas_combustible.html',
         ventas_mensuales_combustible=ventas_mensuales_combustible,
         productos_mas_vendidos=productos_mas_vendidos,
-        clientes=clientes
+        clientes=clientes,
+        anios_ventas=anios_ventas,
+        anios_productos=anios_productos
     )
 
 @app.route('/productos_mas_vendidos', methods=['GET'])
@@ -778,7 +878,11 @@ def descargar_reporte(reporte, formato):
         pdf.set_font("Arial", '', 10)
         for row in data:
             for col in columns:
-                pdf.cell(col_width, 10, str(row.get(col, '')), border=1, align='C')
+                valor = row.get(col, '')
+                # Formatear si es número
+                if isinstance(valor, (int, float)):
+                    valor = "{:,.2f}".format(valor)
+                pdf.cell(col_width, 10, str(valor), border=1, align='C')
             pdf.ln()
         output = io.BytesIO(pdf.output(dest='S').encode('latin1'))
         filename = f"{nombre}_{fecha_inicio}_a_{fecha_fin}.pdf"
@@ -786,6 +890,88 @@ def descargar_reporte(reporte, formato):
 
     else:
         abort(400, "Formato no soportado.")
+
+@app.route('/crear_usuario', methods=['GET', 'POST'])
+@login_required
+def crear_usuario():
+    # Solo el usuario 'adminprueba' (sin importar mayúsculas/minúsculas) puede acceder
+    if session.get('usuario', '').lower() != 'adminprueba':
+        flash('Solo el usuario principal puede crear usuarios.', 'danger')
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        usuario = request.form.get('usuario', '').strip()
+        correo = request.form.get('correo', '').strip()
+        contrasena = request.form.get('contrasena', '').strip()
+        rol = request.form.get('rol', 'encargado')
+        if not usuario or not contrasena:
+            flash('Usuario y contraseña son obligatorios.', 'warning')
+        else:
+            db_auth = DatabaseAuthenticator()
+            exito = db_auth.crear_usuario(usuario, correo, contrasena, rol)
+            if exito:
+                flash('Usuario creado correctamente.', 'success')
+                return redirect(url_for('crear_usuario'))
+            else:
+                flash('Error al crear usuario. ¿Ya existe ese nombre?', 'danger')
+    return render_template('crear_usuario.html')
+@app.route('/usuarios')
+@login_required
+def usuarios():
+    # Solo adminprueba puede acceder
+    if session.get('usuario', '').lower() != 'adminprueba':
+        flash('Solo el usuario principal puede gestionar usuarios.', 'danger')
+        return redirect(url_for('dashboard'))
+    db_auth = DatabaseAuthenticator()
+    usuarios = []
+    try:
+        with pyodbc.connect(db_auth._get_connection_string()) as cn:
+            cursor = cn.cursor()
+            cursor.execute("SELECT UsuarioID, NombreUsuario, CorreoElectronico, Rol FROM Usuarios")
+            for row in cursor.fetchall():
+                usuarios.append({
+                    'id': row[0],
+                    'usuario': row[1],
+                    'correo': row[2],
+                    'rol': row[3]
+                })
+    except Exception as e:
+        flash(f'Error al obtener usuarios: {e}', 'danger')
+    return render_template('usuarios.html', usuarios=usuarios)
+
+@app.route('/editar_usuario', methods=['POST'])
+@login_required
+def editar_usuario():
+    if session.get('usuario', '').lower() != 'adminprueba':
+        flash('Solo el usuario principal puede editar usuarios.', 'danger')
+        return redirect(url_for('usuarios'))
+    usuario_id = request.form.get('usuario_id')
+    correo = request.form.get('correo', '').strip()
+    rol = request.form.get('rol', '').strip()
+    contrasena1 = request.form.get('contrasena1', '').strip()
+    contrasena2 = request.form.get('contrasena2', '').strip()
+    if not usuario_id:
+        flash('ID de usuario inválido.', 'danger')
+        return redirect(url_for('usuarios'))
+    if contrasena1 or contrasena2:
+        if contrasena1 != contrasena2:
+            flash('Las contraseñas no coinciden.', 'danger')
+            return redirect(url_for('usuarios'))
+    try:
+        db_auth = DatabaseAuthenticator()
+        with pyodbc.connect(db_auth._get_connection_string()) as cn:
+            cursor = cn.cursor()
+            # Actualizar correo y rol
+            cursor.execute("UPDATE Usuarios SET CorreoElectronico = ?, Rol = ? WHERE UsuarioID = ?", (correo, rol, usuario_id))
+            # Si hay nueva contraseña, actualizarla como hash
+            if contrasena1:
+                from werkzeug.security import generate_password_hash
+                pw_hash = generate_password_hash(contrasena1)
+                cursor.execute("UPDATE Usuarios SET Contrasena = ? WHERE UsuarioID = ?", (pw_hash, usuario_id))
+            cn.commit()
+        flash('Usuario actualizado correctamente.', 'success')
+    except Exception as e:
+        flash(f'Error al actualizar usuario: {e}', 'danger')
+    return redirect(url_for('usuarios'))
 
 @app.route('/maintenance')
 @login_required

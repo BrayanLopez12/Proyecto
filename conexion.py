@@ -2,8 +2,130 @@ import os
 import pyodbc
 import datetime
 import getpass  # Módulo para ocultar la contraseña al escribir
+from werkzeug.security import check_password_hash, generate_password_hash
 
 class DatabaseAuthenticator:
+    def actualizar_cascada_inventario(self, inventario_id, tipo_id, nuevo_inventario_final, fecha):
+        """
+        Actualiza en cascada los registros posteriores al registro editado para mantener la coherencia de saldos.
+        """
+        try:
+            self.connection = pyodbc.connect(self._get_connection_string())
+            cursor = self.connection.cursor()
+            # Seleccionar todos los registros posteriores (por fecha y tipo) ordenados
+            cursor.execute("""
+                SELECT InventarioID, Entrada, Salida, Fecha
+                FROM InventarioCombustible
+                WHERE TipoCombustibleID = ? AND (Fecha > ? OR (Fecha = ? AND InventarioID > ?))
+                ORDER BY Fecha ASC, InventarioID ASC
+            """, (tipo_id, fecha, fecha, inventario_id))
+            registros = cursor.fetchall()
+            inventario_inicial = nuevo_inventario_final
+            for reg in registros:
+                reg_id = reg[0]
+                entrada = float(reg[1] or 0)
+                salida = float(reg[2] or 0)
+                # Calcular nuevo inventario final
+                inventario_final = inventario_inicial + entrada - salida
+                # Actualizar registro
+                cursor.execute("""
+                    UPDATE InventarioCombustible
+                    SET InventarioInicial = ?, InventarioFinal = ?
+                    WHERE InventarioID = ?
+                """, (inventario_inicial, inventario_final, reg_id))
+                inventario_inicial = inventario_final
+            self.connection.commit()
+        except Exception as e:
+            print("Error en actualización en cascada de inventario:", e)
+        finally:
+            if self.connection:
+                self.connection.close()
+    def obtener_saldos_actuales_todos(self):
+        """
+        Devuelve un diccionario con el saldo actual de todos los tipos de combustible.
+        """
+        try:
+            self.connection = pyodbc.connect(self._get_connection_string())
+            cursor = self.connection.cursor()
+            cursor.execute("""
+                SELECT TC.Nombre, ISNULL(SUM(IC.Entrada),0) AS TotalEntradas, ISNULL(SUM(IC.Salida),0) AS TotalSalidas
+                FROM InventarioCombustible IC
+                JOIN TiposCombustible TC ON IC.TipoCombustibleID = TC.TipoCombustibleID
+                GROUP BY TC.Nombre
+            """)
+            saldos = {}
+            for row in cursor.fetchall():
+                nombre = row[0]
+                entradas = float(row[1])
+                salidas = float(row[2])
+                saldos[nombre] = entradas - salidas
+            return saldos
+        except Exception as e:
+            print("Error al obtener saldos actuales de todos los combustibles:", e)
+            return {}
+        finally:
+            if self.connection:
+                self.connection.close()
+    def obtener_saldo_actual(self, tipo_id):
+        """
+        Devuelve el saldo actual (SUM(Entrada) - SUM(Salida)) para el tipo de combustible.
+        """
+        try:
+            self.connection = pyodbc.connect(self._get_connection_string())
+            cursor = self.connection.cursor()
+            cursor.execute("""
+                SELECT ISNULL(SUM(Entrada),0) AS TotalEntradas, ISNULL(SUM(Salida),0) AS TotalSalidas
+                FROM InventarioCombustible
+                WHERE TipoCombustibleID = ?
+            """, (tipo_id,))
+            row = cursor.fetchone()
+            entradas = float(row[0]) if row and row[0] is not None else 0.0
+            salidas = float(row[1]) if row and row[1] is not None else 0.0
+            return entradas - salidas
+        except Exception as e:
+            print("Error al calcular saldo actual:", e)
+            return 0.0
+        finally:
+            if self.connection:
+                self.connection.close()
+
+    def obtener_inventario_actual(self, tipo_id):
+        """
+        Devuelve el saldo real actual para el tipo de combustible,
+        sumando entradas y restando salidas posteriores al último registro de inventario.
+        """
+        try:
+            self.connection = pyodbc.connect(self._get_connection_string())
+            cursor = self.connection.cursor()
+            # 1. Obtener el último registro de inventario para ese tipo
+            cursor.execute("""
+                SELECT TOP 1 InventarioFinal, Fecha
+                FROM InventarioCombustible
+                WHERE TipoCombustibleID = ?
+                ORDER BY Fecha DESC, InventarioID DESC
+            """, (tipo_id,))
+            row = cursor.fetchone()
+            saldo = float(row[0]) if row and row[0] is not None else 0.0
+            fecha_ultimo = row[1] if row and row[1] is not None else None
+
+            # 2. Sumar entradas y restar salidas posteriores a esa fecha
+            if fecha_ultimo:
+                cursor.execute("""
+                    SELECT ISNULL(SUM(Entrada),0), ISNULL(SUM(Salida),0)
+                    FROM InventarioCombustible
+                    WHERE TipoCombustibleID = ? AND Fecha > ?
+                """, (tipo_id, fecha_ultimo))
+                movs = cursor.fetchone()
+                entradas = float(movs[0]) if movs and movs[0] is not None else 0.0
+                salidas = float(movs[1]) if movs and movs[1] is not None else 0.0
+                saldo += entradas - salidas
+            return saldo
+        except Exception as e:
+            print("Error al calcular inventario actual:", e)
+            return 0.0
+        finally:
+            if self.connection:
+                self.connection.close()
     def __init__(self):
         # Configuración de la conexión (usa variables de entorno con fallback)
         self.server = os.getenv('DB_SERVER', r'LAPTOP-1MHEEMP6\SQLSERVER2022')
@@ -22,33 +144,91 @@ class DatabaseAuthenticator:
             f'PWD={self.password}'
         )
 
-    def authenticate_user(self, username: str, password: str) -> bool:
-        """Autentica un usuario contra la base de datos"""
+    def authenticate_user(self, username: str, password: str):
+        """Autentica un usuario y devuelve dict con datos o None.
+        Compatibilidad: acepta contraseñas en texto plano o con hash.
+        """
         try:
-            # Establecer conexión
             self.connection = pyodbc.connect(self._get_connection_string())
             cursor = self.connection.cursor()
-            
-            # Consulta parametrizada (protege contra inyección SQL)
-            query = "SELECT UsuarioID FROM Usuarios WHERE NombreUsuario = ? AND Contrasena = ?"
-            cursor.execute(query, (username, password))
-            
-            # Verificar resultados
-            result = cursor.fetchone()
-            return result is not None
-            
+            # Intentar traer hash (o texto) y rol; si la columna Rol no existe, hacer fallback
+            try:
+                cursor.execute(
+                    "SELECT UsuarioID, Contrasena, ISNULL(Rol, 'encargado') as Rol FROM Usuarios WHERE NombreUsuario = ?",
+                    (username,)
+                )
+            except pyodbc.ProgrammingError:
+                cursor.execute(
+                    "SELECT UsuarioID, Contrasena FROM Usuarios WHERE NombreUsuario = ?",
+                    (username,)
+                )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            # Cuando no exista Rol, asignar 'encargado' por defecto
+            user_id, stored_pw = row[0], row[1]
+            role = row[2] if len(row) >= 3 else 'encargado'
+
+            # Si parece hash (ej. pbkdf2:, scrypt:), usar check_password_hash; si no, comparar en texto plano
+            if isinstance(stored_pw, str) and (':' in stored_pw):
+                ok = check_password_hash(stored_pw, password)
+            else:
+                ok = (stored_pw == password)
+
+            if not ok:
+                return None
+
+            return {"id": int(user_id), "usuario": username, "rol": role}
         except pyodbc.Error as ex:
             error_msg = ex.args[1] if len(ex.args) > 1 else str(ex)
             print(f"\nError de base de datos: {error_msg}")
+            return None
+        finally:
+            if self.connection:
+                self.connection.close()
+
+    def set_user_password(self, username: str, password: str) -> bool:
+        """Actualiza la contraseña del usuario con un hash seguro."""
+        try:
+            self.connection = pyodbc.connect(self._get_connection_string())
+            cursor = self.connection.cursor()
+            pw_hash = generate_password_hash(password)
+            cursor.execute("UPDATE Usuarios SET Contrasena = ? WHERE NombreUsuario = ?", (pw_hash, username))
+            self.connection.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print("Error al actualizar contraseña:", e)
+            if self.connection:
+                self.connection.rollback()
             return False
         finally:
-            # Cerrar conexión siempre
+            if self.connection:
+                self.connection.close()
+
+    def crear_usuario(self, username: str, correo: str, password: str, rol: str = 'encargado') -> bool:
+        """Crea un usuario con contraseña hasheada."""
+        try:
+            self.connection = pyodbc.connect(self._get_connection_string())
+            cursor = self.connection.cursor()
+            pw_hash = generate_password_hash(password)
+            cursor.execute(
+                "INSERT INTO Usuarios (NombreUsuario, Contrasena, CorreoElectronico, FechaCreacion, Rol) VALUES (?, ?, ?, GETDATE(), ?)",
+                (username, pw_hash, correo, rol)
+            )
+            self.connection.commit()
+            return True
+        except Exception as e:
+            print("Error al crear usuario:", e)
+            if self.connection:
+                self.connection.rollback()
+            return False
+        finally:
             if self.connection:
                 self.connection.close()
     
     def obtener_ventas_mensuales_combustible_agrupadas(self, cliente_id=None, mes=None, anio=None):
         """
-        Obtiene las ventas de combustible agrupadas.
+        Obtiene las ventas de combustible agrupadas, incluyendo el año.
         Si no hay filtros, muestra todos los datos históricos.
         """
         try:
@@ -58,7 +238,8 @@ class DatabaseAuthenticator:
             query_base = (
                 "SELECT MONTH(VC.Fecha) as mes, "
                 "TC.Nombre as tipo_combustible, "
-                "SUM(DVC.CantidadLitros) as total_litros "
+                "SUM(DVC.CantidadLitros) as total_litros, "
+                "YEAR(VC.Fecha) as anio "
                 "FROM VentaCombustible VC "
                 "JOIN DetalleVentaCombustible DVC ON VC.VentaCombustibleID = DVC.VentaCombustibleID "
                 "JOIN TiposCombustible TC ON DVC.TipoCombustibleID = TC.TipoCombustibleID "
@@ -76,7 +257,7 @@ class DatabaseAuthenticator:
             query = query_base
             if where_clauses:
                 query += " WHERE " + " AND ".join(where_clauses)
-            query += " GROUP BY MONTH(VC.Fecha), TC.Nombre ORDER BY mes, tipo_combustible;"
+            query += " GROUP BY YEAR(VC.Fecha), MONTH(VC.Fecha), TC.Nombre ORDER BY anio, mes, tipo_combustible;"
             cursor.execute(query, params)
             resultados = cursor.fetchall()
             print('DEBUG ventas mensuales:', resultados)  # Depuración
@@ -90,7 +271,7 @@ class DatabaseAuthenticator:
 
     def obtener_productos_mas_vendidos(self, cliente_id=None, mes=None, anio=None):
         """
-        Obtiene los productos más vendidos.
+        Obtiene los productos más vendidos, incluyendo el año.
         Si no hay filtros, muestra el top 10 histórico.
         """
         try:
@@ -99,7 +280,8 @@ class DatabaseAuthenticator:
             params = []
             query_base = (
                 "SELECT TOP 10 P.Nombre, "
-                "SUM(DV.Cantidad) as total_vendido "
+                "SUM(DV.Cantidad) as total_vendido, "
+                "YEAR(V.Fecha) as anio "
                 "FROM Ventas V "
                 "JOIN DetalleVenta DV ON V.VentaID = DV.VentaID "
                 "JOIN Productos P ON DV.ProductoID = P.ProductoID "
@@ -117,7 +299,7 @@ class DatabaseAuthenticator:
             query = query_base
             if where_clauses:
                 query += " WHERE " + " AND ".join(where_clauses)
-            query += " GROUP BY P.Nombre ORDER BY total_vendido DESC;"
+            query += " GROUP BY YEAR(V.Fecha), P.Nombre ORDER BY anio DESC, total_vendido DESC;"
             cursor.execute(query, params)
             resultados = cursor.fetchall()
             print('DEBUG productos más vendidos:', resultados)  # Depuración
@@ -143,26 +325,6 @@ class DatabaseAuthenticator:
         except Exception as e:
             print("Error al obtener ventas totales:", e)
             return 0.0
-        finally:
-            if self.connection:
-                self.connection.close()
-
-    def obtener_ventas_por_producto(self):
-        try:
-            self.connection = pyodbc.connect(self._get_connection_string())
-            cursor = self.connection.cursor()
-            query = """
-                SELECT P.Nombre, SUM(V.Cantidad) as TotalVendido
-                FROM Ventas V
-                JOIN Productos P ON V.ProductoID = P.ProductoID
-                WHERE V.Fecha >= DATEADD(day, -7, GETDATE())
-                GROUP BY P.Nombre
-            """
-            cursor.execute(query)
-            return cursor.fetchall()
-        except Exception as e:
-            print("Error al obtener ventas por producto:", e)
-            return []
         finally:
             if self.connection:
                 self.connection.close()
@@ -233,24 +395,7 @@ class DatabaseAuthenticator:
             if self.connection:
                 self.connection.close()
 
-    def obtener_productos_vendidos_hoy(self):
-        try:
-            self.connection = pyodbc.connect(self._get_connection_string())
-            cursor = self.connection.cursor()
-            query = """
-                SELECT ISNULL(SUM(Cantidad), 0)
-                FROM Ventas
-                WHERE CAST(Fecha AS DATE) = CAST(GETDATE() AS DATE)
-            """
-            cursor.execute(query)
-            result = cursor.fetchone()
-            return int(result[0]) if result and result[0] else 0
-        except Exception as e:
-            print("Error al obtener productos vendidos:", e)
-            return 0
-        finally:
-            if self.connection:
-                self.connection.close()
+    
     
     def obtener_todos_los_registros_inventario(self):
         try:
@@ -608,28 +753,6 @@ class DatabaseAuthenticator:
             if self.connection:
                 self.connection.close()
 
-    def obtener_todos_los_productos(self):
-        try:
-            self.connection = pyodbc.connect(self._get_connection_string())
-            cursor = self.connection.cursor()
-            query = "SELECT ProductoID, Codigo, Nombre, Precio, Cantidad FROM Productos ORDER BY ProductoID"
-            cursor.execute(query)
-            productos = []
-            for row in cursor.fetchall():
-                productos.append(type('Producto', (), {
-                    'ProductoID': row[0],
-                    'Codigo': row[1],
-                    'Nombre': row[2],
-                    'Precio': row[3],
-                    'Cantidad': row[4]
-                })())
-            return productos
-        except Exception as e:
-            print("Error al obtener productos:", e)
-            return []
-        finally:
-            if self.connection:
-                self.connection.close()
 
     def agregar_producto(self, codigo, nombre, precio, cantidad):
         try:
@@ -865,22 +988,7 @@ class DatabaseAuthenticator:
             if self.connection:
                 self.connection.close()
 
-    def obtener_ventas_combustible(self):
-        try:
-            self.connection = pyodbc.connect(self._get_connection_string())
-            cursor = self.connection.cursor()
-            cursor.execute("""
-                SELECT VC.VentaCombustibleID, VC.Fecha, VC.Total, VC.MetodoPago, VC.Observaciones
-                FROM VentaCombustible VC
-                ORDER BY VC.Fecha DESC
-            """)
-            return cursor.fetchall()
-        except Exception as e:
-            print("Error al consultar ventas de combustible:", e)
-            return []
-        finally:
-            if self.connection:
-                self.connection.close()
+    
 
     def obtener_tipos_combustible_con_precio(self):
         try:

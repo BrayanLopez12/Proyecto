@@ -42,7 +42,7 @@
                                 <select name="producto_id" class="form-control" required>
                                     <option value="">Seleccionar producto...</option>
                                     {% for producto in productos %}
-                                        <option value="{{ producto.ProductoID }}">{{ producto.Codigo }} - {{ producto.Nombre }} (Q{{ "%.2f"|format(producto.Precio) }})</option>
+                                        <option value="{{ producto.ProductoID }}">{{ producto.Codigo }} - {{ producto.Nombre }} (Q{{ "{:,.2f}".format(producto.Precio) }})</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -74,9 +74,9 @@
                             <tr>
                                 <td>{{ item.codigo }}</td>
                                 <td>{{ item.nombre }}</td>
-                                <td>Q{{ "%.2f"|format(item.precio) }}</td>
+                                <td>Q{{ "{:,.2f}".format(item.precio) }}</td>
                                 <td>{{ item.cantidad }}</td>
-                                <td>Q{{ "%.2f"|format(item.precio * item.cantidad) }}</td>
+                                <td>Q{{ "{:,.2f}".format(item.precio * item.cantidad) }}</td>
                                 <td>
                                     <form method="post" style="display:inline;">
                                         <button type="submit" name="eliminar_producto" value="{{ item.producto_id }}" class="btn btn-danger btn-sm" title="Eliminar">
@@ -97,20 +97,20 @@
                         <h5>Resumen de Venta</h5>
                         <div class="mb-2 d-flex justify-content-between">
                             <span>Subtotal:</span>
-                            <span>Q{{ "%.2f"|format(subtotal) }}</span>
+                            <span>Q{{ "{:,.2f}".format(subtotal) }}</span>
                         </div>
                         <div class="mb-2 d-flex justify-content-between">
                             <span>IVA:</span>
-                            <span>Q{{ "%.2f"|format(iva) }}</span>
+                            <span>Q{{ "{:,.2f}".format(iva) }}</span>
                         </div>
                         <div class="mb-2 d-flex justify-content-between">
                             <span>Descuento:</span>
-                            <span>Q{{ "%.2f"|format(descuento) }}</span>
+                            <span>Q{{ "{:,.2f}".format(descuento) }}</span>
                         </div>
                         <hr>
                         <div class="mb-2 d-flex justify-content-between">
                             <strong>Total:</strong>
-                            <strong>Q{{ "%.2f"|format(total) }}</strong>
+                            <strong>Q{{ "{:,.2f}".format(total) }}</strong>
                         </div>
                         <div class="mb-2">
                             <label>Método de Pago</label>
@@ -172,7 +172,7 @@
                             <!-- <td>{{ venta.id }}</td> -->
                             <td>{{ venta.cliente }}</td>
                             <td>{{ venta.fecha.strftime('%d-%m-%Y') }}</td>
-                            <td>Q{{ "%.2f"|format(venta.total) }}</td>
+                            <td>Q{{ "{:,.2f}".format(venta.total) }}</td>
                             <td>{{ venta.metodo_pago }}</td>
                             <td>{{ venta.observaciones }}</td>
                         </tr>

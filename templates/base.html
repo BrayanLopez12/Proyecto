@@ -150,7 +150,7 @@
                     <i class="bi bi-fuel-pump"></i> Inventario
                 </a>
             </li>
-             <li class="nav-item">
+            <li class="nav-item">
                 <a class="nav-link {% if request.path == url_for('ventas_combustible') %}active{% endif %}" href="{{ url_for('ventas_combustible') }}">
                     <i class="bi bi-droplet-half"></i> Ventas Combustible
                 </a>
@@ -175,6 +175,18 @@
                     <i class="bi bi-file-earmark-text"></i> Reportes
                 </a>
             </li>
+            {% if session.get('usuario', '').lower() == 'adminprueba' %}
+            <li class="nav-item">
+                <a class="nav-link {% if request.path == url_for('usuarios') %}active{% endif %}" href="{{ url_for('usuarios') }}">
+                    <i class="bi bi-people"></i> Gestión de usuarios
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.path == url_for('crear_usuario') %}active{% endif %}" href="{{ url_for('crear_usuario') }}">
+                    <i class="bi bi-person-plus"></i> Crear usuario
+                </a>
+            </li>
+            {% endif %}
         </ul>
 
         <!-- Menú de usuario en la parte inferior -->

@@ -65,7 +65,7 @@
                 <tr>
                     <td>{{ producto.Codigo }}</td>
                     <td>{{ producto.Nombre }}</td>
-                    <td>Q{{ "%.2f"|format(producto.Precio) }}</td>
+                    <td>Q{{ "{:,.2f}".format(producto.Precio) }}</td>
                     <td>{{ producto.Cantidad }}</td>
                     <td>
                         <!-- Botón Editar -->

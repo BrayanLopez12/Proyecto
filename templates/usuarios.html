@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block title %}Gestión de Usuarios{% endblock %}
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">Gestión de Usuarios</h2>
+    <input type="text" id="buscador" class="form-control mb-3" placeholder="Buscar usuario o correo..." onkeyup="filtrarUsuarios()">
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover" id="tablaUsuarios">
+            <thead class="table-light">
+                <tr>
+                    <th>Usuario</th>
+                    <th>Correo</th>
+                    <th>Rol</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in usuarios %}
+                <tr>
+                    <td>{{ u.usuario }}</td>
+                    <td>{{ u.correo }}</td>
+                    <td>{{ u.rol }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="abrirModalEditar('{{ u.id }}', '{{ u.usuario }}', '{{ u.correo }}', '{{ u.rol }}')">Editar</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Edición Usuario -->
+<div class="modal fade" id="modalEditarUsuario" tabindex="-1" aria-labelledby="modalEditarUsuarioLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="/editar_usuario">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalEditarUsuarioLabel">Editar Usuario</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="usuario_id" id="edit_usuario_id">
+          <div class="mb-3">
+            <label for="edit_usuario" class="form-label">Usuario</label>
+            <input type="text" class="form-control" id="edit_usuario" name="usuario" readonly>
+          </div>
+          <div class="mb-3">
+            <label for="edit_correo" class="form-label">Correo</label>
+            <input type="email" class="form-control" id="edit_correo" name="correo">
+          </div>
+          <div class="mb-3">
+            <label for="edit_rol" class="form-label">Rol</label>
+            <select class="form-select" id="edit_rol" name="rol">
+              <option value="admin">Admin</option>
+              <option value="encargado">Encargado</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Nueva contraseña</label>
+            <input type="password" class="form-control" name="contrasena1" id="edit_contrasena1" autocomplete="new-password">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Repetir contraseña</label>
+            <input type="password" class="form-control" name="contrasena2" id="edit_contrasena2" autocomplete="new-password">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function filtrarUsuarios() {
+    var input = document.getElementById('buscador');
+    var filtro = input.value.toLowerCase();
+    var tabla = document.getElementById('tablaUsuarios');
+    var filas = tabla.getElementsByTagName('tr');
+    for (var i = 1; i < filas.length; i++) {
+        var celdas = filas[i].getElementsByTagName('td');
+        if (celdas.length > 0) {
+            var usuario = celdas[0].textContent.toLowerCase();
+            var correo = celdas[1].textContent.toLowerCase();
+            filas[i].style.display = (usuario.includes(filtro) || correo.includes(filtro)) ? '' : 'none';
+        }
+    }
+}
+function abrirModalEditar(id, usuario, correo, rol) {
+    document.getElementById('edit_usuario_id').value = id;
+    document.getElementById('edit_usuario').value = usuario;
+    document.getElementById('edit_correo').value = correo;
+    document.getElementById('edit_rol').value = rol;
+    document.getElementById('edit_contrasena1').value = '';
+    document.getElementById('edit_contrasena2').value = '';
+    var modal = new bootstrap.Modal(document.getElementById('modalEditarUsuario'));
+    modal.show();
+}
+</script>
+{% endblock %}

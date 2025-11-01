@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Crear Usuario{% endblock %}
+{% block content %}
+<div class="container mt-4" style="max-width: 500px;">
+  <h3 class="mb-3">Crear nuevo usuario</h3>
+  <form method="post">
+    <div class="mb-3">
+      <label for="usuario" class="form-label">Usuario</label>
+      <input type="text" class="form-control" id="usuario" name="usuario" required>
+    </div>
+    <div class="mb-3">
+      <label for="correo" class="form-label">Correo electrónico</label>
+      <input type="email" class="form-control" id="correo" name="correo">
+    </div>
+    <div class="mb-3">
+      <label for="contrasena" class="form-label">Contraseña</label>
+      <input type="password" class="form-control" id="contrasena" name="contrasena" required>
+    </div>
+    <div class="mb-3">
+      <label for="rol" class="form-label">Rol</label>
+      <select class="form-select" id="rol" name="rol">
+        <option value="encargado">Encargado</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Crear usuario</button>
+  </form>
+</div>
+{% endblock %}
