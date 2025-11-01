@@ -1,0 +1,5 @@
+Flask>=2.3
+pyodbc>=5.0
+pandas>=2.0
+XlsxWriter>=3.1
+fpdf2>=2.7

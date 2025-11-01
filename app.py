@@ -1,5 +1,4 @@
 from functools import wraps
-from imaplib import _Authenticator
 from flask import Flask, flash, jsonify, make_response, render_template, redirect, request, session, url_for , send_file, abort# type: ignore
 from conexion import DatabaseAuthenticator
 from datetime import datetime
@@ -11,7 +10,7 @@ import calendar
 import os
 
 app = Flask(__name__)
-app.secret_key = 'Ale1209.'
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'change-me')
 app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hora de duración de sesión
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SECURE'] = False  # Cambiar a True en producción con HTTPS
@@ -105,7 +104,6 @@ def perfil():
     return render_template('perfil.html', usuario=usuario)
 
 @app.route('/salir')
-@app.route('/salir')
 @app.route('/logout')
 def logout():
     # Limpiar la sesión
@@ -119,7 +117,7 @@ def logout():
     response.headers['Expires'] = '0'
     return response
 
-@app.route('/fuel-inventory')
+@app.route('/fuel-inventory', methods=['GET', 'POST'])
 @login_required
 def fuel_inventory():
     db_auth = DatabaseAuthenticator()
@@ -136,7 +134,7 @@ def fuel_inventory():
     registros = db_auth.obtener_todos_los_registros_inventario()
     return render_template('fuel_inventory.html', registros=registros)
 
-@app.route('/truck-registry')
+@app.route('/truck-registry', methods=['GET', 'POST'])
 @login_required
 def truck_registry():
     db_auth = DatabaseAuthenticator()
@@ -168,7 +166,7 @@ def format_inventory_data(registros):
         registro['InventarioFinal'] = "{:,.2f}".format(float(registro['InventarioFinal'] or 0))
     return registros
 
-@app.route('/inventory-and-trucks')
+@app.route('/inventory-and-trucks', methods=['GET', 'POST'])
 @login_required
 def inventory_and_trucks():
     db_auth = DatabaseAuthenticator()
@@ -242,6 +240,7 @@ def inventory_and_trucks():
         registros=registros_con_nombre,
         pipas=pipas,
         tipos_combustible=tipos_combustible,
+        tipo_default_id=tipo_default_id,
         page=page,
         total=total,
         per_page=per_page,

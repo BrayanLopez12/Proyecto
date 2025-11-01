@@ -1,14 +1,15 @@
+import os
 import pyodbc
 import datetime
 import getpass  # Módulo para ocultar la contraseña al escribir
 
 class DatabaseAuthenticator:
     def __init__(self):
-        # Configuración de la conexión (idealmente usa variables de entorno)
-        self.server = r'LAPTOP-1MHEEMP6\SQLSERVER2022'
-        self.database = 'SistemaGasolinera'
-        self.username = 'sa'
-        self.password = 'Ale1209.'
+        # Configuración de la conexión (usa variables de entorno con fallback)
+        self.server = os.getenv('DB_SERVER', r'LAPTOP-1MHEEMP6\SQLSERVER2022')
+        self.database = os.getenv('DB_NAME', 'SistemaGasolinera')
+        self.username = os.getenv('DB_USER', 'sa')
+        self.password = os.getenv('DB_PASSWORD', 'Ale1209.')
         self.connection = None
 
     def _get_connection_string(self):
